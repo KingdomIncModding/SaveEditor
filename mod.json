@@ -21,21 +21,22 @@
     "distribution":  {
                          "nexus":  {
                                        "game":  "kingdominc",
-                                       "modId":  null,
-                                       "fileId":  null,
-                                       "url":  null,
+                                       "modId":  "29",
+                                       "fileId":  8397165,
+                                       "url":  "https://www.nexusmods.com/kingdominc/mods/29",
                                        "tags":  [
                                                     "AI-Generated Content"
                                                 ],
                                        "requirements":  [
 
                                                         ],
-                                       "requirementsVerified":  false,
-                                       "tagsVerified":  false
+                                       "requirementsVerified":  true,
+                                       "tagsVerified":  true
                                    }
                      },
     "publishing":  {
                        "archivePreviousReleases":  true,
-                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.0"
+                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.0",
+                       "nexusMods":  "https://www.nexusmods.com/kingdominc/mods/29"
                    }
 }
