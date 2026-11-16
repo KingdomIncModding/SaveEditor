@@ -1,0 +1,15 @@
+/_AI/
+/Nexus/
+/Release/
+/.github/
+/.agents/
+/.claude/
+/.codex/
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+/~tmp/
+/AI_SETUP_PROMPT.md
+__pycache__/
+*.pyc
+*.tmp

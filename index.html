@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kingdom Inc Save Editor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <button id="btn-toggle-sidebar" title="Toggle Save Browser">☰ Saves</button>
+        <div class="brand">
+          <img class="sprite" src="/sprites/Icons_1.png" alt="" onerror="this.style.display='none'" />
+          <span>Kingdom Inc Save Editor</span>
+        </div>
+        <div class="save-pill" id="active-save-pill">
+          <span class="save-name" id="active-save-name">No save loaded</span>
+          <span class="badge" id="active-save-version">—</span>
+          <span class="badge accent" id="active-save-format">—</span>
+          <span class="badge red" id="dirty-badge" style="display:none;">Unsaved changes</span>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <button id="btn-undo" disabled title="Undo (Ctrl+Z)">↶ Undo</button>
+        <button id="btn-redo" disabled title="Redo (Ctrl+Y)">↷ Redo</button>
+        <button id="btn-scan-bloat" disabled title="Scan &amp; clean save bloat">🧹 Scan Bloat</button>
+        <button id="btn-diff" disabled title="View pending changes">Diff</button>
+        <button id="btn-backups" disabled title="View & restore backups">Backups</button>
+        <label class="btn" title="Open .save or .json file from disk">
+          Open File
+          <input type="file" id="file-upload-input" accept=".save,.json" style="display:none;" />
+        </label>
+        <select id="save-format-select" title="Output Save Format">
+          <option value="compressed">Format: GZip (.save)</option>
+          <option value="pretty">Format: Pretty JSON</option>
+          <option value="uncompressed">Format: Compact JSON</option>
+        </select>
+        <select id="secret-mode-select" title="Secret Hash Handling (1.0.14 ignores Secret, 1.0.13 writes FNV-1a)">
+          <option value="keep">Secret: Keep</option>
+          <option value="recompute">Secret: Recompute FNV-1a</option>
+          <option value="remove">Secret: Remove (1.0.14)</option>
+        </select>
+        <button id="btn-export" disabled title="Download save copy">Export</button>
+        <button id="btn-save-as" disabled title="Save As new file in Saves directory">Save As…</button>
+        <button id="btn-save" class="primary" disabled title="Save with automatic backup (Ctrl+S)">Save</button>
+      </div>
+    </header>
+
+    <!-- Workspace -->
+    <div class="workspace">
+      <!-- Left Saves Sidebar -->
+      <aside class="saves-sidebar" id="saves-sidebar">
+        <div class="sidebar-header">
+          <div class="row">
+            <strong style="font-size:12px; color:var(--gold);">Saves Directory</strong>
+            <span class="spacer"></span>
+            <button id="btn-refresh-saves" class="sm">Refresh</button>
+          </div>
+          <input type="text" id="saves-dir-input" placeholder="Saves directory path…" style="width:100%; font-size:11px;" />
+          <input type="text" id="saves-filter-input" placeholder="Filter saves…" style="width:100%;" />
+        </div>
+        <div class="sidebar-list" id="saves-list"></div>
+      </aside>
+
+      <!-- Main Tab Area -->
+      <main class="main-area">
+        <nav class="tabs-bar" id="tabs-bar">
+          <button class="tab-btn active" data-tab="overview">Overview &amp; Currencies</button>
+          <button class="tab-btn" data-tab="tech">Tech Tree &amp; Prestige</button>
+          <button class="tab-btn" data-tab="resources">Resources, Forest &amp; Farm</button>
+          <button class="tab-btn" data-tab="flows">Flow Diagrams</button>
+          <button class="tab-btn" data-tab="armory">Armory &amp; Portals</button>
+          <button class="tab-btn" data-tab="adventure">Wars, Dungeons, Quests &amp; Upgrades</button>
+          <button class="tab-btn" data-tab="cleaner">🧹 Bloat Scanner &amp; Cleaner</button>
+          <button class="tab-btn" data-tab="raw">Register &amp; Raw JSON</button>
+        </nav>
+
+        <section class="tab-content" id="tab-content">
+          <div class="empty-state">
+            <img class="sprite" src="/sprites/Icons_8.png" style="width:48px;height:48px;" alt="" />
+            <div style="font-size:16px;font-weight:700;color:var(--text);">Select a save from the left panel or drop a <code>.save</code> / <code>.json</code> file here</div>
+            <div style="max-width:540px;">
+              All saves in your Kingdom Inc directory are auto-discovered. Every write automatically creates a <code>.bak</code> and a timestamped snapshot in <code>.saveeditor_backups/</code>.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Drop Overlay -->
+  <div class="drop-overlay" id="drop-overlay">Drop .save or .json file to open</div>
+
+  <!-- Generic / Dynamic Modal -->
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal" id="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">Modal</h3>
+        <button id="modal-close" class="sm">✕</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-footer" id="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

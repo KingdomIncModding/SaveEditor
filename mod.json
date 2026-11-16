@@ -1,0 +1,39 @@
+{
+  "id": "SaveEditor",
+  "name": "Kingdom Inc Save Editor",
+  "version": "1.0.0",
+  "author": "Urakka",
+  "description": "Requires Python 3.10+ (Windows). Standalone browser-based Save Editor for Kingdom Inc 1.0.14+ with full currency, tech tree, prestige, farm, forest, armory, portal, adventure, item/adventurer, bloat cleaner, and visual flow diagram editing.",
+  "repository": {
+    "platform": "GitHub",
+    "owner": "KingdomIncModding",
+    "name": "SaveEditor",
+    "url": "https://github.com/KingdomIncModding/SaveEditor",
+    "branch": "main",
+    "visibility": "public",
+    "topics": [
+      "kingdom-inc",
+      "save-editor",
+      "tool"
+    ],
+    "latestTag": null
+  },
+  "distribution": {
+    "nexus": {
+      "game": "kingdominc",
+      "modId": null,
+      "fileId": null,
+      "url": null,
+      "tags": [
+        "AI-Generated Content"
+      ],
+      "requirements": [],
+      "requirementsVerified": false,
+      "tagsVerified": false
+    }
+  },
+  "publishing": {
+    "archivePreviousReleases": true,
+    "githubReleases": true
+  }
+}
