@@ -10,7 +10,7 @@ if (-not $editorRunning) {
     $py = Get-Command pythonw.exe -ErrorAction SilentlyContinue
     if (-not $py) { $py = Get-Command python.exe -ErrorAction SilentlyContinue }
     if (-not $py) { throw 'Python 3 is required to serve the Save Editor. Install Python or run: python server.py' }
-    Start-Process -FilePath $py.Source -ArgumentList @('"' + (Join-Path $editorRoot 'server.py') + '"') -WorkingDirectory $editorRoot -WindowStyle Hidden
+    Start-Process -FilePath $py.Source -ArgumentList @('"' + (Join-Path $editorRoot 'server.py') + '"', '--no-browser') -WorkingDirectory $editorRoot -WindowStyle Hidden
     for ($attempt = 0; $attempt -lt 40; $attempt++) {
         Start-Sleep -Milliseconds 250
         try {

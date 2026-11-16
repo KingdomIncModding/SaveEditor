@@ -20,9 +20,9 @@ A standalone local save editor for **Kingdom Inc** (`1.0.14+` and modded saves),
 ## Installation & Usage
 
 1. Extract the release archive anywhere on your PC (or clone the repository).
-2. Double-click **Launch Save Editor.cmd** (or run `python server.py` and open `http://127.0.0.1:48176`).
+2. Double-click **server.py** or run `python server.py` in the extracted folder — it starts a local server on `http://127.0.0.1:48176` and automatically opens your default browser.
 3. Close the game or avoid overwriting an active save while the game is saving; reload your save in-game after editing.
-4. To stop the background server, run **Stop-SaveEditor.ps1**.
+4. Click the top-right **⏻** button in the editor (or close the terminal window) to stop the server.
 
 ## Requirements
 

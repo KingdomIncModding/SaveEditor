@@ -9,7 +9,10 @@ import mimetypes
 import os
 import re
 import shutil
+import threading
 import time
+import urllib.request
+import webbrowser
 from datetime import datetime
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -768,6 +771,11 @@ class SaveEditorHandler(SimpleHTTPRequestHandler):
                     'data': data,
                 })
 
+            if path == '/api/shutdown':
+                self.send_json(200, {'ok': True})
+                threading.Thread(target=self.server.shutdown, daemon=True).start()
+                return
+
             return self.send_json(404, {'error': f'Unknown API route: {path}'})
         except Exception as ex:
             return self.send_json(500, {'error': str(ex)})
@@ -780,12 +788,32 @@ class SaveEditorHandler(SimpleHTTPRequestHandler):
         pass
 
 
+def is_already_running(port: int) -> bool:
+    try:
+        with urllib.request.urlopen(f'http://127.0.0.1:{port}/health', timeout=1) as r:
+            info = json.loads(r.read().decode('utf-8'))
+            return info.get('app') == 'KingdomIncSaveEditor'
+    except Exception:
+        return False
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=48176)
+    parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
+    url = f'http://127.0.0.1:{args.port}'
+
+    if is_already_running(args.port):
+        print(f'Kingdom Inc Save Editor already running at {url}', flush=True)
+        if not args.no_browser:
+            webbrowser.open(url)
+        raise SystemExit(0)
+
     server = ThreadingHTTPServer(('127.0.0.1', args.port), partial(SaveEditorHandler, directory=str(ROOT)))
-    print(f'Kingdom Inc Save Editor: http://127.0.0.1:{args.port}', flush=True)
+    print(f'Kingdom Inc Save Editor: {url}', flush=True)
+    if not args.no_browser:
+        threading.Timer(0.35, lambda: webbrowser.open(url)).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:

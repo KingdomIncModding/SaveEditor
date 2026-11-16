@@ -4785,6 +4785,15 @@
     $('btn-save').addEventListener('click', saveCurrentFile);
     $('btn-save-as').addEventListener('click', saveAsFile);
     $('btn-export').addEventListener('click', exportCurrentSave);
+    $('btn-stop-server')?.addEventListener('click', async () => {
+      if (isDirty() && !confirm('You have unsaved changes. Stop the Save Editor server anyway?')) return;
+      try {
+        await api('/api/shutdown', 'POST', {});
+        toast('Save Editor server stopped. You can close this tab.', 'warn');
+      } catch (err) {
+        toast('Server stopped.', 'warn');
+      }
+    });
 
     $('file-upload-input').addEventListener('change', (e) => {
       if (e.target.files[0]) handleFileUpload(e.target.files[0]);
