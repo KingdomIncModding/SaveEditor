@@ -16,7 +16,7 @@
                                       "save-editor",
                                       "tool"
                                   ],
-                       "latestTag":  "v1.0.0"
+                       "latestTag":  "v1.0.1"
                    },
     "distribution":  {
                          "nexus":  {
@@ -36,7 +36,7 @@
                      },
     "publishing":  {
                        "archivePreviousReleases":  true,
-                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.0",
+                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.1",
                        "nexusMods":  "https://www.nexusmods.com/kingdominc/mods/29"
                    }
 }
