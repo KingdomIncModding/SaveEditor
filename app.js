@@ -244,6 +244,7 @@
       for (const x of arr || []) m[x.Id || x.id] = x;
       return m;
     };
+    const im = cat.installedMods || {};
     state.maps = {
       techs: byId(cat.techs),
       elements: byId(cat.elements),
@@ -258,7 +259,42 @@
       prestige: byId(cat.prestigeNodes),
       upgrades: byId(cat.flowUpgrades),
       enhancements: byId(cat.enhancements),
+      installedMods: {
+        pluginsDir: im.pluginsDir || '',
+        plugins: im.plugins || [],
+        techs: im.techs || {},
+        elements: im.elements || {},
+        upgrades: im.upgrades || {},
+        decoKeys: im.decoKeys || {},
+        elementKeys: im.elementKeys || {},
+        modIds: im.modIds || {},
+      },
     };
+  }
+
+  function isInstalledModTech(id) {
+    return Boolean(state.maps.installedMods?.techs?.[id]);
+  }
+  function isBrokenTech(id) {
+    return !state.maps.techs[id] && !isInstalledModTech(id);
+  }
+  function isInstalledModElement(type) {
+    return Boolean(state.maps.installedMods?.elements?.[type]);
+  }
+  function isBrokenElement(type) {
+    return !state.maps.elements[type] && !isInstalledModElement(type);
+  }
+  function isInstalledModUpgrade(type) {
+    return Boolean(state.maps.installedMods?.upgrades?.[type]);
+  }
+  function isBrokenUpgrade(type) {
+    return !state.maps.upgrades[type] && !isInstalledModUpgrade(type);
+  }
+  function isInstalledDecoKey(key) {
+    return Boolean(state.maps.installedMods?.decoKeys?.[key]);
+  }
+  function isInstalledElementKey(key) {
+    return Boolean(state.maps.installedMods?.elementKeys?.[key]);
   }
 
   // --- Save Loading & Writing ---
@@ -918,6 +954,8 @@
       'FlowCamera', 'FlowZoom',
     ]);
     const extraPlayerKeys = Object.keys(p).filter((k) => !knownKeys.has(k));
+    const extraRootKeys = Object.keys(d).filter((k) => k !== 'Version' && k !== 'Player' && k !== 'Secret');
+    const modScan = scanModLinks(d);
 
     root.innerHTML = `
       <div class="grid grid-2">
@@ -982,21 +1020,36 @@
         <div class="card">
           <div class="card-header">
             <span class="card-title">Quick Summary</span>
+            ${modScan.totalIssues > 0 ? `<button id="ov-jump-mod-cleaner" class="xs danger">⚠ ${modScan.totalIssues} Broken Mod Link${modScan.totalIssues === 1 ? '' : 's'} — Clean Now</button>` : `<span class="badge green">✓ 0 Broken Links${modScan.totalActive > 0 ? ` (${modScan.totalActive} Installed Mod)` : ''}</span>`}
           </div>
           <div class="grid grid-2">
             <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Flows</span><strong>${(p.Flows || []).length}</strong></div>
             <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Total Elements</span><strong>${(p.Flows || []).reduce((a, f) => a + (f.Elements || []).length, 0)}</strong></div>
             <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Total Pipes</span><strong>${(p.Flows || []).reduce((a, f) => a + (f.Pipes || []).length, 0)}</strong></div>
-            <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Techs Unlocked</span><strong>${(p.Tech || []).length} / ${(state.catalog.techs || []).length}</strong></div>
-            <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Prestige Points Spent</span><strong>${Object.values(p.PrestigeNodes || {}).reduce((a, b) => a + Number(b || 0), 0)}</strong></div>
-            <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Unlocked Dungeons</span><strong>${(p.UnlockedDungeons || []).length} / ${(state.catalog.dungeons || []).length}</strong></div>
+            <div class="badge" style="justify-content:space-between;padding:8px 12px;"><span>Techs Unlocked</span><strong>${(p.Tech || []).filter((id) => state.maps.techs[id]).length} / ${(state.catalog.techs || []).length}${modScan.activeTechs.length ? ` (+${modScan.activeTechs.length} installed)` : ''}${modScan.techs.length ? ` (+${modScan.techs.length} broken)` : ''}</strong></div>
+            <div class="badge ${modScan.totalActive > 0 ? 'accent' : ''}" style="justify-content:space-between;padding:8px 12px;"><span>Installed Mod Links (Valid)</span><strong>${modScan.totalActive} (${modScan.activeTechs.length} tech · ${modScan.activeWorldNodes.length} nodes)</strong></div>
+            <div class="badge ${modScan.totalIssues > 0 ? 'red' : 'green'}" style="justify-content:space-between;padding:8px 12px;"><span>Broken Mod Links</span><strong>${modScan.totalIssues} (${modScan.techs.length + modScan.newTechCount.length} tech · ${modScan.worldNodes.length} nodes)</strong></div>
           </div>
-          ${extraPlayerKeys.length ? `
+          ${(extraPlayerKeys.length || extraRootKeys.length) ? `
             <div class="inspector-section" style="margin-top:6px;">
-              <h4>Modded / Extra Player Keys Detected</h4>
+              <h4>Modded / Extra Save Keys Detected</h4>
+              ${extraRootKeys.map((k) => `
+                <div class="field">
+                  <div class="row">
+                    <label>Root.${esc(k)}</label>
+                    <span class="spacer"></span>
+                    <button class="xs danger del-extra-root" data-key="${esc(k)}">✕ Remove Key</button>
+                  </div>
+                  <textarea class="mono extra-root-json" data-key="${esc(k)}" rows="3">${esc(JSON.stringify(d[k], null, 2))}</textarea>
+                </div>
+              `).join('')}
               ${extraPlayerKeys.map((k) => `
                 <div class="field">
-                  <label>${esc(k)}</label>
+                  <div class="row">
+                    <label>Player.${esc(k)}</label>
+                    <span class="spacer"></span>
+                    <button class="xs danger del-extra-ply" data-key="${esc(k)}">✕ Remove Key</button>
+                  </div>
                   <textarea class="mono extra-ply-json" data-key="${esc(k)}" rows="3">${esc(JSON.stringify(p[k], null, 2))}</textarea>
                 </div>
               `).join('')}
@@ -1065,6 +1118,24 @@
     bindNum('ov-tzoom', (s, el) => { s.Player.TechTreeZoom = parseInt(el.value, 10) || 3; });
     bindNum('ov-secret', (s, el) => { s.Secret = el.value; });
 
+    $('ov-jump-mod-cleaner')?.addEventListener('click', () => switchTab('cleaner'));
+
+    document.querySelectorAll('.extra-root-json').forEach((ta) => {
+      ta.addEventListener('change', () => {
+        try {
+          const parsed = JSON.parse(ta.value);
+          commitChange(`Edit Root.${ta.dataset.key}`, (s) => { s[ta.dataset.key] = parsed; });
+        } catch (err) {
+          toast(`Invalid JSON in Root.${ta.dataset.key}: ${err.message}`, 'err');
+        }
+      });
+    });
+    document.querySelectorAll('.del-extra-root').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        commitChange(`Remove Root.${k}`, (s) => { delete s[k]; });
+      });
+    });
     document.querySelectorAll('.extra-ply-json').forEach((ta) => {
       ta.addEventListener('change', () => {
         try {
@@ -1073,6 +1144,12 @@
         } catch (err) {
           toast(`Invalid JSON in ${ta.dataset.key}: ${err.message}`, 'err');
         }
+      });
+    });
+    document.querySelectorAll('.del-extra-ply').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const k = btn.dataset.key;
+        commitChange(`Remove Player.${k}`, (s) => { delete s.Player[k]; });
       });
     });
 
@@ -1168,17 +1245,25 @@
     const unlockedSet = new Set(p.Tech || []);
     const allTechs = state.catalog.techs || [];
     const branches = Array.from(new Set(allTechs.map((t) => t.Branch || '(Main)'))).sort();
-    const unknownTechs = (p.Tech || []).filter((id) => !state.maps.techs[id]);
+    const brokenTechs = (p.Tech || []).filter(isBrokenTech);
+    const brokenNewTechs = Object.keys(p.NewTechCount || {}).filter(isBrokenTech);
+    const activeModTechs = (p.Tech || []).filter(isInstalledModTech);
+    const activeModNewTechs = Object.keys(p.NewTechCount || {}).filter(isInstalledModTech);
+    const totalBrokenTechs = brokenTechs.length + brokenNewTechs.length;
+    const totalActiveModTechs = activeModTechs.length + activeModNewTechs.length;
+    const vanillaUnlockedCount = (p.Tech || []).filter((id) => state.maps.techs[id]).length;
 
     const q = state.techSearch.toLowerCase();
-    const filteredTechs = allTechs.filter((t) => {
-      const isUnlocked = unlockedSet.has(t.Id);
-      if (state.techFilter === 'unlocked' && !isUnlocked) return false;
-      if (state.techFilter === 'locked' && isUnlocked) return false;
-      if (state.techBranch !== 'all' && (t.Branch || '(Main)') !== state.techBranch) return false;
-      if (q && !t.Name.toLowerCase().includes(q) && !t.Id.toLowerCase().includes(q) && !(t.Description || '').toLowerCase().includes(q)) return false;
-      return true;
-    });
+    const filteredTechs = state.techFilter === 'modded'
+      ? []
+      : allTechs.filter((t) => {
+          const isUnlocked = unlockedSet.has(t.Id);
+          if (state.techFilter === 'unlocked' && !isUnlocked) return false;
+          if (state.techFilter === 'locked' && isUnlocked) return false;
+          if (state.techBranch !== 'all' && (t.Branch || '(Main)') !== state.techBranch) return false;
+          if (q && !t.Name.toLowerCase().includes(q) && !t.Id.toLowerCase().includes(q) && !(t.Description || '').toLowerCase().includes(q)) return false;
+          return true;
+        });
 
     root.innerHTML = `
       <div class="card" style="margin-bottom:14px;">
@@ -1213,8 +1298,9 @@
 
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Tech Tree (${unlockedSet.size} / ${allTechs.length} unlocked${unknownTechs.length ? ` + ${unknownTechs.length} custom/modded` : ''})</span>
+          <span class="card-title">Tech Tree (${vanillaUnlockedCount} / ${allTechs.length} vanilla${activeModTechs.length ? ` · +${activeModTechs.length} installed mod` : ''}${totalBrokenTechs ? ` · ${totalBrokenTechs} broken` : ''})</span>
           <div class="row">
+            ${totalBrokenTechs ? `<button id="tech-remove-modded" class="sm danger" title="Removes only broken/uninstalled mod tech links; keeps installed mod techs">🧹 Remove Broken Tech Links (${totalBrokenTechs})</button>` : ''}
             <button id="tech-unlock-all" class="sm accent">Unlock All Vanilla</button>
             <button id="tech-unlock-filtered" class="sm">Unlock Filtered</button>
             <button id="tech-lock-all" class="sm danger">Lock All</button>
@@ -1225,20 +1311,51 @@
         <div class="row">
           <input type="text" id="tech-search" value="${esc(state.techSearch)}" placeholder="Search techs by name, ID, or description..." style="flex:1;min-width:220px;" />
           <select id="tech-filter">
-            <option value="all" ${state.techFilter === 'all' ? 'selected' : ''}>All (${allTechs.length})</option>
-            <option value="unlocked" ${state.techFilter === 'unlocked' ? 'selected' : ''}>Unlocked Only</option>
-            <option value="locked" ${state.techFilter === 'locked' ? 'selected' : ''}>Locked Only</option>
+            <option value="all" ${state.techFilter === 'all' ? 'selected' : ''}>All Vanilla (${allTechs.length})</option>
+            <option value="unlocked" ${state.techFilter === 'unlocked' ? 'selected' : ''}>Unlocked Only (${vanillaUnlockedCount})</option>
+            <option value="locked" ${state.techFilter === 'locked' ? 'selected' : ''}>Locked Only (${allTechs.length - vanillaUnlockedCount})</option>
+            <option value="modded" ${state.techFilter === 'modded' ? 'selected' : ''}>Modded &amp; Broken (${totalBrokenTechs} broken · ${totalActiveModTechs} installed)</option>
           </select>
           <select id="tech-branch">
             <option value="all">All Branches</option>
             ${branches.map((b) => `<option value="${esc(b)}" ${state.techBranch === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}
           </select>
         </div>
-        ${unknownTechs.length ? `
-          <div class="inspector-section">
-            <h4>Custom / Modded Tech IDs in Save (${unknownTechs.length})</h4>
+        ${totalBrokenTechs ? `
+          <div class="inspector-section" style="border-color:rgba(244,91,105,0.45);background:rgba(244,91,105,0.06);">
+            <h4>
+              <span>⚠ Broken / Uninstalled Mod Tech Links (${totalBrokenTechs})</span>
+              <button id="tech-remove-modded-2" class="xs danger">Remove All ${totalBrokenTechs} Broken Tech Links (Keep Installed Mods)</button>
+            </h4>
+            ${brokenTechs.length ? `
+              <div style="font-size:11px;color:var(--text-muted);">Broken Tech IDs in <code>Player.Tech</code> (${brokenTechs.length}) — not registered by any currently installed mod in <code>BepInEx/plugins</code>:</div>
+              <div class="row">
+                ${brokenTechs.map((id) => `<span class="item-chip del-tech" data-id="${esc(id)}" title="Click to remove broken tech from Player.Tech"><span class="mono">${esc(id)}</span> <span class="badge gold">${esc(identifyModSource(id))}</span> <span class="badge red">BROKEN · ✕</span></span>`).join('')}
+              </div>
+            ` : ''}
+            ${brokenNewTechs.length ? `
+              <div style="font-size:11px;color:var(--red);margin-top:4px;">Broken Notification Keys in <code>Player.NewTechCount</code> (${brokenNewTechs.length}) — <strong>crashes vanilla save loading if not removed!</strong></div>
+              <div class="row">
+                ${brokenNewTechs.map((id) => `<span class="item-chip del-new-tech" data-id="${esc(id)}" title="Click to remove from Player.NewTechCount"><span class="mono">${esc(id)} (${p.NewTechCount[id]})</span> <span class="badge gold">${esc(identifyModSource(id))}</span> <span class="badge red">CRASH · ✕</span></span>`).join('')}
+              </div>
+            ` : ''}
+          </div>
+        ` : (state.techFilter === 'modded' ? `<div style="padding:12px;color:var(--green);text-align:center;">✓ 0 broken tech links in this save!</div>` : '')}
+        ${totalActiveModTechs ? `
+          <div class="inspector-section" style="border-color:rgba(61,220,132,0.35);background:rgba(61,220,132,0.04);">
+            <h4>
+              <span style="color:var(--green);">✓ Active Installed Mod Techs in Save (${activeModTechs.length} unlocked${activeModNewTechs.length ? ` · ${activeModNewTechs.length} in NewTechCount` : ''}) — Preserved</span>
+            </h4>
+            <div style="font-size:11px;color:var(--text-muted);">These tech IDs belong to mods currently installed in <code>BepInEx/plugins</code> and are automatically kept when cleaning broken links (click a chip only if you want to manually lock it):</div>
             <div class="row">
-              ${unknownTechs.map((id) => `<span class="item-chip del-tech" data-id="${esc(id)}">${esc(id)} <span class="badge red">✕</span></span>`).join('')}
+              ${activeModTechs.map((id) => {
+                const modInfo = state.maps.installedMods.techs[id];
+                return `<span class="item-chip del-tech" data-id="${esc(id)}" title="Installed Mod: ${esc(modInfo?.modName || identifyModSource(id))} (click to manually lock)"><span class="mono">${esc(id)}</span> <span class="badge green">✓ ${esc(modInfo?.modName || identifyModSource(id))}</span> <span class="badge">✕</span></span>`;
+              }).join('')}
+              ${activeModNewTechs.map((id) => {
+                const modInfo = state.maps.installedMods.techs[id];
+                return `<span class="item-chip del-new-tech" data-id="${esc(id)}" title="Installed Mod NewTechCount: ${esc(modInfo?.modName || identifyModSource(id))} (click to clear notification)"><span class="mono">${esc(id)} (New:${p.NewTechCount[id]})</span> <span class="badge green">✓ ${esc(modInfo?.modName || identifyModSource(id))}</span> <span class="badge">✕</span></span>`;
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -1313,11 +1430,29 @@
     document.querySelectorAll('.del-tech').forEach((chip) => {
       chip.addEventListener('click', () => {
         const id = chip.dataset.id;
-        commitChange(`Remove custom tech ${id}`, (s) => {
+        commitChange(`Remove modded tech ${id}`, (s) => {
           s.Player.Tech = (s.Player.Tech || []).filter((x) => x !== id);
         });
+        toast(`Removed modded tech: ${id}`, 'ok');
       });
     });
+
+    document.querySelectorAll('.del-new-tech').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.id;
+        commitChange(`Remove modded NewTechCount ${id}`, (s) => {
+          if (s.Player.NewTechCount) delete s.Player.NewTechCount[id];
+        });
+        toast(`Removed broken NewTechCount key: ${id}`, 'ok');
+      });
+    });
+
+    const handleRemoveAllModTechs = () => {
+      commitChange(`Remove ${totalBrokenTechs} broken tech links`, cleanModTechs);
+      toast(`Removed ${totalBrokenTechs} broken tech link(s) (installed mod techs preserved)`, 'ok');
+    };
+    $('tech-remove-modded')?.addEventListener('click', handleRemoveAllModTechs);
+    $('tech-remove-modded-2')?.addEventListener('click', handleRemoveAllModTechs);
 
     $('tech-unlock-all')?.addEventListener('click', () => {
       commitChange('Unlock all vanilla techs', (s) => {
@@ -1683,8 +1818,16 @@
   // --- Unity-Accurate Flow Geometry Helpers ---
   function getElementSize(el) {
     const sizes = state.catalog?.elementSizes || {};
-    if (el?.ElementType && sizes[el.ElementType]) return sizes[el.ElementType];
-    if (el?.ElementType && el.ElementType.endsWith('Node')) return [128, 128];
+    const t = el?.ElementType || '';
+    if (t && sizes[t]) return sizes[t];
+    const modEl = state.maps.installedMods?.elements?.[t];
+    if (modEl?.size) return modEl.size;
+    if (t === 'LeylineConduit') return [64, 64];
+    if (t === 'LeylineNode' || t === 'LeylineWorkspaceNode') return [256, 320];
+    if (t === 'LeylineInputBank' || t === 'LeylineOutputBank' || t === 'LeylineInputBankNode' || t === 'LeylineOutputBankNode') return [128, 320];
+    if (t === 'Ledger') return [384, 192];
+    if (t === 'Party') return [192, 192];
+    if (t && t.endsWith('Node')) return [128, 128];
     return [192, 128];
   }
 
@@ -1816,13 +1959,16 @@
     if (el.Resource && state.maps.allItems[el.Resource]?.Icon) return state.maps.allItems[el.Resource].Icon;
     if (el.SelectedResource && state.maps.allItems[el.SelectedResource]?.Icon) return state.maps.allItems[el.SelectedResource].Icon;
     if (el.FilterType && state.maps.allItems[el.FilterType]?.Icon) return state.maps.allItems[el.FilterType].Icon;
-    return state.maps.elements[el.ElementType]?.Icon || 'Icons_1';
+    if (el.LeylineIcon) return el.LeylineIcon;
+    return state.maps.elements[el.ElementType]?.Icon || 'Icons_104';
   }
 
   function renderFlowsTab(root) {
     const flows = state.data.Player.Flows || [];
     const active = getActiveFlow();
     const selCount = state.selectedElements.length || (state.selectedKind === 'element' && state.selectedIndex >= 0 ? 1 : 0);
+    const brokenCountActive = (active?.Elements || []).filter((e) => isBrokenElement(e.ElementType)).length;
+    const brokenCountAll = flows.reduce((acc, fl) => acc + (fl.Elements || []).filter((e) => isBrokenElement(e.ElementType)).length, 0);
 
     root.innerHTML = `
       <div class="flow-studio">
@@ -1835,16 +1981,20 @@
             </div>
           </div>
           <div class="sidebar-list" id="flow-list">
-            ${flows.map((f, idx) => `
-              <div class="flow-diagram-item ${idx === state.activeFlowIndex ? 'active' : ''}" data-fidx="${idx}">
-                ${spriteImg(f.IconName || 'Icons_1', 22)}
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.Label || `Flow #${idx + 1}`)}</div>
-                  <div style="font-size:10.5px;color:var(--text-muted);">${(f.Elements || []).length} els · ${(f.Pipes || []).length} pipes</div>
+            ${flows.map((f, idx) => {
+              const fBrokenCnt = (f.Elements || []).filter((e) => isBrokenElement(e.ElementType)).length;
+              const fActiveModCnt = (f.Elements || []).filter((e) => isInstalledModElement(e.ElementType)).length;
+              return `
+                <div class="flow-diagram-item ${idx === state.activeFlowIndex ? 'active' : ''}" data-fidx="${idx}">
+                  ${spriteImg(f.IconName || 'Icons_1', 22)}
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(f.Label || `Flow #${idx + 1}`)}</div>
+                    <div style="font-size:10.5px;color:var(--text-muted);">${(f.Elements || []).length} els · ${(f.Pipes || []).length} pipes${fActiveModCnt ? ` · <span style="color:var(--accent);">${fActiveModCnt} mod</span>` : ''}${fBrokenCnt ? ` · <span style="color:var(--red);font-weight:600;">${fBrokenCnt} broken</span>` : ''}</div>
+                  </div>
+                  ${state.data.Player.CurrentFlow === idx ? '<span class="badge gold" title="Active in-game tab">★</span>' : ''}
                 </div>
-                ${state.data.Player.CurrentFlow === idx ? '<span class="badge gold" title="Active in-game tab">★</span>' : ''}
-              </div>
-            `).join('')}
+              `;
+            }).join('')}
           </div>
           ${active ? `
             <div style="padding:10px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;">
@@ -1878,6 +2028,7 @@
                   <option value="16" ${state.gridSnap === 16 ? 'selected' : ''}>Snap: 16px</option>
                   <option value="0" ${state.gridSnap === 0 ? 'selected' : ''}>Snap: Off</option>
                 </select>
+                ${brokenCountActive > 0 ? `<button id="ft-clean-mod-flow" class="xs danger" title="Remove broken/uninstalled world nodes in this flow (keeps active installed mod nodes)">🧹 Remove Broken Nodes (${brokenCountActive})</button>` : (brokenCountAll > 0 ? `<button id="ft-clean-mod-all" class="xs danger" title="Remove broken/uninstalled world nodes across all flows (keeps active installed mod nodes)">🧹 Remove All Broken Nodes (${brokenCountAll})</button>` : '')}
               </div>
             </div>
             <div class="flow-hud-row">
@@ -1991,6 +2142,24 @@
     $('ft-connect')?.addEventListener('click', () => { state.flowTool = 'connect'; state.connectStart = null; toast('Click source element (Output), then target element (Input).', 'info'); renderActiveTab(); });
     $('ft-fit')?.addEventListener('click', () => { fitFlowCamera(); drawFlowCanvas(); });
     $('ft-snap')?.addEventListener('change', (e) => { state.gridSnap = parseInt(e.target.value, 10) || 0; });
+    $('ft-clean-mod-flow')?.addEventListener('click', () => {
+      let removed = 0, pipesRemoved = 0;
+      commitChange(`Remove modded nodes in Flow #${state.activeFlowIndex + 1}`, (s) => {
+        const r = cleanModWorldNodes(s, null, state.activeFlowIndex);
+        removed = r.nodesRemoved;
+        pipesRemoved = r.pipesRemoved;
+      });
+      toast(`Removed ${removed} modded node(s) and ${pipesRemoved} connected pipe(s) in this flow`, 'ok');
+    });
+    $('ft-clean-mod-all')?.addEventListener('click', () => {
+      let removed = 0, pipesRemoved = 0;
+      commitChange('Remove all modded world nodes', (s) => {
+        const r = cleanModWorldNodes(s, null, null);
+        removed = r.nodesRemoved;
+        pipesRemoved = r.pipesRemoved;
+      });
+      toast(`Removed ${removed} modded node(s) and ${pipesRemoved} connected pipe(s) across all flows`, 'ok');
+    });
 
     const getTargetElementIndices = (fl) => {
       if (state.selectedElements.length > 0) return [...state.selectedElements];
@@ -2407,9 +2576,12 @@
       }
 
       // Main card
-      ctx.fillStyle = selected ? '#233146' : '#17202e';
-      ctx.strokeStyle = isConnectSrc ? '#3ddc84' : selected ? '#f0c96d' : '#3a4b66';
-      ctx.lineWidth = selected || isConnectSrc ? 2.4 : 1.2;
+      const cat = state.maps.elements[el.ElementType];
+      const isBrokenEl = isBrokenElement(el.ElementType);
+      const isActiveModEl = isInstalledModElement(el.ElementType);
+      ctx.fillStyle = selected ? '#233146' : isBrokenEl ? '#281621' : isActiveModEl ? '#152233' : '#17202e';
+      ctx.strokeStyle = isConnectSrc ? '#3ddc84' : selected ? '#f0c96d' : isBrokenEl ? '#f45b69' : isActiveModEl ? '#4aa8ff' : '#3a4b66';
+      ctx.lineWidth = selected || isConnectSrc || isBrokenEl ? 2.2 : 1.2;
       ctx.beginPath();
       ctx.roundRect(sx, sy, pw, ph, Math.max(3, 6 * state.cam.zoom));
       ctx.fill();
@@ -2418,13 +2590,12 @@
       // Top title strip
       const titleH = Math.min(ph * 0.28, Math.max(12, 28 * state.cam.zoom));
       if (state.cam.zoom > 0.22) {
-        ctx.fillStyle = selected ? 'rgba(228,180,76,0.16)' : 'rgba(255,255,255,0.04)';
+        ctx.fillStyle = selected ? 'rgba(228,180,76,0.16)' : isBrokenEl ? 'rgba(244,91,105,0.22)' : isActiveModEl ? 'rgba(74,168,255,0.12)' : 'rgba(255,255,255,0.04)';
         ctx.fillRect(sx + 1, sy + 1, Math.max(0, pw - 2), titleH);
-        ctx.fillStyle = '#dce6f5';
+        ctx.fillStyle = isBrokenEl && !selected ? '#ffb3ba' : '#dce6f5';
         ctx.font = `600 ${Math.max(8, Math.min(13, 12 * state.cam.zoom))}px sans-serif`;
         ctx.textAlign = 'center';
-        const cat = state.maps.elements[el.ElementType];
-        const label = cat ? cat.Name : el.ElementType;
+        const label = cat ? cat.Name : isBrokenEl ? `⚠ ${el.ElementType}` : el.ElementType;
         ctx.fillText(label.slice(0, Math.max(8, Math.floor(pw / 7))), sx + pw / 2, sy + titleH * 0.72);
       }
 
@@ -2867,6 +3038,12 @@
     if (!body || !flow) return;
 
     if (!state.selectedKind || state.selectedIndex < 0) {
+      const brokenElsInFlow = (flow.Elements || []).filter((e) => isBrokenElement(e.ElementType));
+      const activeModElsInFlow = (flow.Elements || []).filter((e) => isInstalledModElement(e.ElementType));
+      const brokenTypesInFlow = {};
+      brokenElsInFlow.forEach((e) => { brokenTypesInFlow[e.ElementType] = (brokenTypesInFlow[e.ElementType] || 0) + 1; });
+      const totalBrokenElsAllFlows = (state.data.Player.Flows || []).reduce((acc, fl) => acc + (fl.Elements || []).filter((e) => isBrokenElement(e.ElementType)).length, 0);
+
       body.innerHTML = `
         <div class="inspector-section">
           <h4>Flow Summary</h4>
@@ -2877,15 +3054,48 @@
           </div>
           <div style="font-size:11.5px;color:var(--text-muted);margin-top:4px;">Click any Element, Pipe, or Decoration on the canvas or choose from the lists below:</div>
         </div>
+        ${(brokenElsInFlow.length > 0 || totalBrokenElsAllFlows > 0) ? `
+          <div class="inspector-section" style="border-color:rgba(244,91,105,0.45);background:rgba(244,91,105,0.06);">
+            <h4>
+              <span>⚠ Broken World Nodes (${brokenElsInFlow.length} in flow · ${totalBrokenElsAllFlows} total)</span>
+            </h4>
+            ${brokenElsInFlow.length > 0 ? `
+              <div style="font-size:11px;color:var(--text-muted);">Uninstalled mod nodes in this flow (installed mod nodes are preserved):</div>
+              <div class="row">
+                ${Object.entries(brokenTypesInFlow).map(([t, cnt]) => `
+                  <span class="item-chip fl-del-mod-type" data-type="${esc(t)}" title="Remove all ${esc(t)} nodes in this flow">
+                    <span class="mono">${esc(t)}</span> <span class="badge gold">×${cnt}</span> <span class="badge red">✕</span>
+                  </span>
+                `).join('')}
+              </div>
+            ` : ''}
+            <div class="row">
+              ${brokenElsInFlow.length > 0 ? `<button id="fl-clean-mod-here" class="xs danger">Remove ${brokenElsInFlow.length} Broken in This Flow</button>` : ''}
+              ${totalBrokenElsAllFlows > brokenElsInFlow.length ? `<button id="fl-clean-mod-everywhere" class="xs danger">Remove All ${totalBrokenElsAllFlows} Broken Across Save</button>` : ''}
+            </div>
+          </div>
+        ` : ''}
+        ${activeModElsInFlow.length > 0 ? `
+          <div class="inspector-section" style="border-color:rgba(74,168,255,0.35);background:rgba(74,168,255,0.04);">
+            <h4>
+              <span style="color:var(--accent);">✓ Installed Mod World Nodes (${activeModElsInFlow.length} in flow) — Preserved</span>
+            </h4>
+            <div style="font-size:11px;color:var(--text-muted);">These nodes belong to mods currently installed in <code>BepInEx/plugins</code> and are kept when removing broken links.</div>
+          </div>
+        ` : ''}
         <div class="inspector-section">
           <h4>Elements (${(flow.Elements || []).length})</h4>
           <div style="display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto;">
-            ${(flow.Elements || []).map((el, i) => `
-              <div class="item-chip pick-el" data-i="${i}" style="justify-content:space-between;">
-                <span class="row">${spriteImg(getElementIconName(el), 18)} <strong>${esc(state.maps.elements[el.ElementType]?.Name || el.ElementType)}</strong></span>
-                <span class="mono" style="font-size:10px;color:var(--text-dim);">(${(el.Position || [0, 0]).join(',')})</span>
-              </div>
-            `).join('')}
+            ${(flow.Elements || []).map((el, i) => {
+              const isBroken = isBrokenElement(el.ElementType);
+              const isActiveMod = isInstalledModElement(el.ElementType);
+              return `
+                <div class="item-chip pick-el" data-i="${i}" style="justify-content:space-between;${isBroken ? 'border-color:rgba(244,91,105,0.45);' : isActiveMod ? 'border-color:rgba(74,168,255,0.35);' : ''}">
+                  <span class="row">${spriteImg(getElementIconName(el), 18)} <strong>${esc(state.maps.elements[el.ElementType]?.Name || el.ElementType)}</strong> ${isBroken ? '<span class="badge red">BROKEN</span>' : isActiveMod ? '<span class="badge accent">MOD</span>' : ''}</span>
+                  <span class="mono" style="font-size:10px;color:var(--text-dim);">(${(el.Position || [0, 0]).join(',')})</span>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       `;
@@ -2902,6 +3112,30 @@
       $('fl-zoom')?.addEventListener('change', (e) => commitChange('Edit flow zoom', (s) => {
         s.Player.Flows[state.activeFlowIndex].Zoom = parseInt(e.target.value, 10) || 2;
       }));
+      body.querySelectorAll('.fl-del-mod-type').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const t = chip.dataset.type;
+          let r = { nodesRemoved: 0, pipesRemoved: 0 };
+          commitChange(`Remove ${t} nodes in Flow #${state.activeFlowIndex + 1}`, (s) => {
+            r = cleanModWorldNodes(s, t, state.activeFlowIndex);
+          });
+          toast(`Removed ${r.nodesRemoved} ${t} node(s) and ${r.pipesRemoved} pipe(s)`, 'ok');
+        });
+      });
+      $('fl-clean-mod-here')?.addEventListener('click', () => {
+        let r = { nodesRemoved: 0, pipesRemoved: 0 };
+        commitChange(`Remove modded nodes in Flow #${state.activeFlowIndex + 1}`, (s) => {
+          r = cleanModWorldNodes(s, null, state.activeFlowIndex);
+        });
+        toast(`Removed ${r.nodesRemoved} modded node(s) and ${r.pipesRemoved} pipe(s) in this flow`, 'ok');
+      });
+      $('fl-clean-mod-everywhere')?.addEventListener('click', () => {
+        let r = { nodesRemoved: 0, pipesRemoved: 0 };
+        commitChange('Remove all modded world nodes across save', (s) => {
+          r = cleanModWorldNodes(s, null, null);
+        });
+        toast(`Removed ${r.nodesRemoved} modded node(s) and ${r.pipesRemoved} pipe(s) across all flows`, 'ok');
+      });
       body.querySelectorAll('.pick-el').forEach((c) => {
         c.addEventListener('click', () => {
           state.selectedKind = 'element';
@@ -2961,6 +3195,10 @@
       const deco = flow.Decorations[state.selectedIndex];
       if (!deco) return;
       const styles = state.catalog.enums.DecoStyles || [];
+      const vanillaDecoKeys = new Set(['Position', 'Size', 'StyleIndex', 'Label', 'Sticker', 'Locked', 'IsParent']);
+      const extraDecoKeys = Object.keys(deco).filter((k) => !vanillaDecoKeys.has(k));
+      const brokenDecoKeys = extraDecoKeys.filter((k) => !isInstalledDecoKey(k));
+      const activeDecoKeys = extraDecoKeys.filter((k) => isInstalledDecoKey(k));
       body.innerHTML = `
         <div class="inspector-section">
           <h4>Decoration / Zone #${state.selectedIndex}</h4>
@@ -2988,6 +3226,21 @@
             <button id="dc-sticker-icon" class="sm">Sticker Icon: ${esc(deco.Sticker?.IconName || 'None')}</button>
             ${deco.Sticker ? `<button id="dc-sticker-clear" class="sm danger">Clear Sticker</button>` : ''}
           </div>
+          ${extraDecoKeys.length ? `
+            <div class="inspector-section" style="border-color:${brokenDecoKeys.length ? 'rgba(244,91,105,0.45)' : 'rgba(92,163,240,0.45)'};margin-top:6px;">
+              <h4>
+                <span>Mod Extension Keys (${extraDecoKeys.length})</span>
+                <div class="row">
+                  ${brokenDecoKeys.length ? `<button id="dc-strip-broken-keys" class="xs danger">Strip Broken (${brokenDecoKeys.length})</button>` : ''}
+                  <button id="dc-strip-mod-keys" class="xs danger">Strip All Mod Keys</button>
+                </div>
+              </h4>
+              <div class="row">
+                ${activeDecoKeys.map((k) => `<span class="badge accent" title="Active installed mod key">✓ ${esc(k)} · ${esc(identifyModSource(k))}</span>`).join('')}
+                ${brokenDecoKeys.map((k) => `<span class="badge red" title="Broken / uninstalled mod key">⚠ ${esc(k)} · ${esc(identifyModSource(k))}</span>`).join('')}
+              </div>
+            </div>
+          ` : ''}
         </div>
       `;
       const upd = (fn) => commitChange('Edit decoration', (s) => fn(s.Player.Flows[state.activeFlowIndex].Decorations[state.selectedIndex]));
@@ -3019,6 +3272,12 @@
         openIconPicker((ic) => upd((dc) => { dc.Sticker = { Type: 'IconSticker', IconName: ic }; }));
       });
       $('dc-sticker-clear')?.addEventListener('click', () => upd((dc) => { delete dc.Sticker; }));
+      $('dc-strip-broken-keys')?.addEventListener('click', () => upd((dc) => {
+        for (const k of brokenDecoKeys) delete dc[k];
+      }));
+      $('dc-strip-mod-keys')?.addEventListener('click', () => upd((dc) => {
+        for (const k of extraDecoKeys) delete dc[k];
+      }));
       return;
     }
 
@@ -3026,6 +3285,11 @@
     const el = flow.Elements[state.selectedIndex];
     if (!el) return;
     const cat = state.maps.elements[el.ElementType];
+    const isBrokenEl = isBrokenElement(el.ElementType);
+    const isActiveModEl = isInstalledModElement(el.ElementType);
+    const sameTypeInSave = (isBrokenEl || isActiveModEl)
+      ? (state.data.Player.Flows || []).reduce((acc, fl) => acc + (fl.Elements || []).filter((x) => x.ElementType === el.ElementType).length, 0)
+      : 0;
     const updEl = (label, fn) => commitChange(label, (s) => fn(s.Player.Flows[state.activeFlowIndex].Elements[state.selectedIndex]));
 
     // Determine specialized fields present or relevant
@@ -3033,6 +3297,31 @@
     const specificKeys = Object.keys(el).filter((k) => !baseKeys.has(k));
 
     body.innerHTML = `
+      ${isBrokenEl ? `
+        <div class="inspector-section" style="border-color:rgba(244,91,105,0.5);background:rgba(244,91,105,0.08);">
+          <h4>
+            <span>⚠ Broken / Uninstalled Mod World Node</span>
+            <span class="badge red">${esc(identifyModSource(el.ElementType))}</span>
+          </h4>
+          <div style="font-size:11px;color:var(--text-muted);">
+            <code>${esc(el.ElementType)}</code> is not provided by vanilla 1.0.14 or any installed plugin in <code>BepInEx/plugins</code>.
+          </div>
+          <div class="row">
+            <button id="el-del-mod-this" class="xs danger">Delete This Node + Pipes</button>
+            ${sameTypeInSave > 1 ? `<button id="el-del-mod-type-all" class="xs danger">Delete All ${sameTypeInSave} ${esc(el.ElementType)} Nodes</button>` : ''}
+          </div>
+        </div>
+      ` : isActiveModEl ? `
+        <div class="inspector-section" style="border-color:rgba(92,163,240,0.45);background:rgba(92,163,240,0.06);">
+          <h4>
+            <span>✓ Active Installed Mod World Node</span>
+            <span class="badge accent">${esc(identifyModSource(el.ElementType))}</span>
+          </h4>
+          <div style="font-size:11px;color:var(--text-muted);">
+            <code>${esc(el.ElementType)}</code> is provided by an installed plugin in <code>BepInEx/plugins</code> and is preserved when cleaning broken mod links.
+          </div>
+        </div>
+      ` : ''}
       <div class="inspector-section">
         <div class="row">
           ${spriteImg(getElementIconName(el), 30)}
@@ -3061,12 +3350,16 @@
           ${(el.Upgrades || []).map((u, ui) => {
             const utype = u?.Type || '';
             const ucat = state.maps.upgrades[utype];
+            const isBrokenUpg = Boolean(utype && isBrokenUpgrade(utype));
+            const isActiveModUpg = Boolean(utype && isInstalledModUpgrade(utype));
             return `
               <div class="row">
-                <span class="badge">#${ui}</span>
+                <span class="badge ${isBrokenUpg ? 'red' : isActiveModUpg ? 'accent' : ''}">#${ui}${isBrokenUpg ? ' BROKEN' : isActiveModUpg ? ' MOD' : ''}</span>
                 ${ucat ? spriteImg(ucat.icon, 18) : ''}
                 <select class="el-upg-sel" data-ui="${ui}" style="flex:1;">
                   <option value="">(Empty Slot)</option>
+                  ${isBrokenUpg ? `<option value="${esc(utype)}" selected>⚠ BROKEN: ${esc(utype)}</option>` : ''}
+                  ${isActiveModUpg ? `<option value="${esc(utype)}" selected>MOD: ${esc(utype)} (${esc(identifyModSource(utype))})</option>` : ''}
                   ${(state.catalog.flowUpgrades || []).map((fu) => `<option value="${esc(fu.id)}" ${utype === fu.id ? 'selected' : ''}>${esc(fu.name)} (${esc(fu.id)})</option>`).join('')}
                 </select>
                 <button class="xs danger el-upg-del" data-ui="${ui}">✕</button>
@@ -3096,6 +3389,16 @@
         <div class="row"><button id="el-apply-raw" class="xs accent">Apply Element JSON</button></div>
       </div>
     `;
+
+    $('el-del-mod-this')?.addEventListener('click', deleteSelectedFlowItem);
+    $('el-del-mod-type-all')?.addEventListener('click', () => {
+      const t = el.ElementType;
+      let r = { nodesRemoved: 0, pipesRemoved: 0 };
+      commitChange(`Remove all ${t} nodes`, (s) => {
+        r = cleanModWorldNodes(s, t, null);
+      });
+      toast(`Removed ${r.nodesRemoved} ${t} node(s) and ${r.pipesRemoved} connected pipe(s)`, 'ok');
+    });
 
     // Bind base fields
     $('el-px').addEventListener('change', (e) => updEl('Move element X', (x) => { x.Position[0] = parseInt(e.target.value, 10) || 0; }));
@@ -3900,28 +4203,44 @@
       <div class="card" style="margin-top:14px;">
         <div class="card-header">
           <span class="card-title">Building Upgrade Slot Counts &amp; Unlocked Flow Upgrades</span>
-          <button id="bld-add" class="sm accent">+ Add Building Type</button>
+          <div class="row">
+            ${upgBuildingKeys.some((b) => isBrokenElement(b) || ((p.UnlockedFlowUpgrades || {})[b] || []).some((u) => isBrokenUpgrade(u))) ? `
+              <button id="bld-clean-modded" class="sm danger">🧹 Remove Broken Building Upgrades</button>
+            ` : ''}
+            <button id="bld-add" class="sm accent">+ Add Building Type</button>
+          </div>
         </div>
         <table class="data-table">
-          <thead><tr><th>ElementType</th><th>Upgrade Slot Count</th><th>Unlocked FlowUpgrades</th></tr></thead>
+          <thead><tr><th>ElementType</th><th>Upgrade Slot Count</th><th>Unlocked FlowUpgrades</th><th></th></tr></thead>
           <tbody>
             ${upgBuildingKeys.map((b) => {
               const cat = state.maps.elements[b];
+              const isBrokenBld = isBrokenElement(b);
+              const isActiveModBld = isInstalledModElement(b);
               const cnt = (p.UpgradeCounts || {})[b] ?? 0;
               const unlocked = (p.UnlockedFlowUpgrades || {})[b] || [];
               return `
-                <tr>
-                  <td><div class="row">${spriteImg(cat?.Icon, 20)} <strong>${esc(cat?.Name || b)}</strong></div></td>
+                <tr style="${isBrokenBld ? 'background:rgba(244,91,105,0.06);' : isActiveModBld ? 'background:rgba(92,163,240,0.04);' : ''}">
+                  <td>
+                    <div class="row">
+                      ${spriteImg(cat?.Icon || 'Icons_104', 20)}
+                      <strong>${esc(cat?.Name || b)}</strong>
+                      ${isBrokenBld ? `<span class="badge red" title="Broken / uninstalled building type (${esc(identifyModSource(b))})">BROKEN</span>` : isActiveModBld ? `<span class="badge accent" title="Active installed mod building (${esc(identifyModSource(b))})">MOD</span>` : ''}
+                    </div>
+                  </td>
                   <td><input type="number" min="0" class="bld-slot-cnt" data-b="${esc(b)}" value="${cnt}" style="width:80px;" /></td>
                   <td>
                     <div class="row">
                       ${unlocked.map((u) => {
                         const uc = state.maps.upgrades[u];
-                        return `<span class="item-chip bld-del-upg" data-b="${esc(b)}" data-u="${esc(u)}" title="Click to remove">${spriteImg(uc?.icon, 16)} ${esc(uc?.name || u)} <span class="badge red">✕</span></span>`;
+                        const isBrokenUpg = isBrokenUpgrade(u);
+                        const isActiveModUpg = isInstalledModUpgrade(u);
+                        return `<span class="item-chip bld-del-upg" data-b="${esc(b)}" data-u="${esc(u)}" title="Click to remove">${spriteImg(uc?.icon, 16)} ${esc(uc?.name || u)} ${isBrokenUpg ? '<span class="badge red">BROKEN</span>' : isActiveModUpg ? '<span class="badge accent">MOD</span>' : ''} <span class="badge red">✕</span></span>`;
                       }).join('')}
                       <button class="xs accent bld-add-upg" data-b="${esc(b)}">+ Upgrade</button>
                     </div>
                   </td>
+                  <td><button class="xs danger bld-del-row" data-b="${esc(b)}" title="Remove ${esc(b)} from UpgradeCounts and UnlockedFlowUpgrades">✕</button></td>
                 </tr>
               `;
             }).join('')}
@@ -4048,6 +4367,21 @@
       });
     });
 
+    document.querySelectorAll('.bld-del-row').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const b = btn.dataset.b;
+        commitChange(`Remove building upgrade entry ${b}`, (s) => {
+          if (s.Player.UpgradeCounts) delete s.Player.UpgradeCounts[b];
+          if (s.Player.UnlockedFlowUpgrades) delete s.Player.UnlockedFlowUpgrades[b];
+        });
+      });
+    });
+
+    $('bld-clean-modded')?.addEventListener('click', () => {
+      commitChange('Remove broken building upgrade entries', cleanModBuildingUpgrades);
+      toast('Removed broken building upgrade entries', 'ok');
+    });
+
     $('bld-add')?.addEventListener('click', () => {
       openCatalogPicker({
         title: 'Add Building Type to UpgradeCounts',
@@ -4061,6 +4395,770 @@
         },
       });
     });
+  }
+
+  // --- Broken Mod Links Detection & Cleanup ---
+  const VANILLA_PLAYER_KEYS = new Set([
+    'Flows', 'Currency', 'CurrencyEarned', 'ExchangeRate', 'Tech', 'NewTechCount',
+    'Resources', 'ResourceUpgradeCount', 'TechTreeCamera', 'TechTreeZoom', 'CurrentFlow',
+    'UpgradeCounts', 'UnlockedFlowUpgrades', 'RequisitionTypes', 'WarProgress',
+    'UnlockedDungeons', 'GameTime', 'ForestSettings', 'FarmSettings', 'QuestMeta',
+    'DungeonMeta', 'Armory', 'Portal', 'Register', 'AscensionCount', 'NightmareCount',
+    'NightmareCountActive', 'NightmareProgress', 'NightmareActive', 'PrestigeNodes',
+    'FlowCamera', 'FlowZoom',
+  ]);
+
+  const VANILLA_ELEMENT_KEYS = new Set([
+    'Guid', 'ElementType', 'Position', 'Inputs', 'Outputs', 'Progress', 'ProductivityProgress',
+    'StackSize', 'Mirrored', 'Upgrades', 'Recipe', 'Input', 'Resource', 'SelectedResource',
+    'FilterType', 'Item', 'OutputType', 'StatAppraised', 'AppraiseType', 'StatAmount',
+    'CurrType', 'CurrAmount', 'QueuedCount', 'Capacity', 'MaxTime', 'TimeLeft',
+    'SwitchPosition', 'InputCount', 'OutputCount', 'CurrentInput', 'CurrentOutput',
+    'Channel', 'ChannelIndex', 'CollectedGold', 'CollectedMana', 'CollectedCrowns',
+    'CollectedRequisition', 'StoredValue', 'ClickCount', 'RewardMultiplier', 'Timeout',
+    'SelectedQuest', 'SelectedContract', 'WarType', 'IsOutput', 'UseMana', 'Fighting',
+    'Contents', 'Soldiers', 'CurrentDungeon', 'Slot1', 'Slot2', 'CurrentEquip',
+    'CurrentHuman', 'LastItem',
+  ]);
+
+  const VANILLA_DECO_KEYS = new Set([
+    'Position', 'Size', 'StyleIndex', 'Label', 'Sticker', 'Locked', 'IsParent',
+  ]);
+
+  function identifyModSource(id) {
+    const s = String(id || '');
+    const im = state.maps?.installedMods;
+    if (im) {
+      if (im.techs?.[s]) return im.techs[s];
+      if (im.elements?.[s]) return im.elements[s];
+      if (im.upgrades?.[s]) return im.upgrades[s];
+      if (im.decoKeys?.[s]) return im.decoKeys[s];
+      if (im.elementKeys?.[s]) return im.elementKeys[s];
+      if (im.modIds?.[s]) return im.modIds[s];
+    }
+    const sl = s.toLowerCase();
+    if (s === 'LeylineConduit' || sl.includes('leyline_conduit') || sl.includes('leylineconduit')) return 'Leyline Conduits';
+    if (
+      s === 'LeylineNode' || s === 'LeylineWorkspaceNode' || s === 'LeylineLogicController' ||
+      s === 'LeylineInputBank' || s === 'LeylineOutputBank' || s === 'LeylineInputBankNode' || s === 'LeylineOutputBankNode' ||
+      sl.startsWith('leyline_logic') || sl.startsWith('leyline_dimension') || sl.includes('leylinelogistics') ||
+      /^(AndGate|OrGate|XorGate|NandGate|NorGate|XnorGate|NotGate|ConstantTrue|ConstantFalse|Counter|Reset|Random|Multiply|EdgeDetector|If|IfGate|IfElse|Timer|Led|Add|Subtract|Divide|Modulo|Equal|NotEqual|GreaterThan|LessThan|GreaterOrEqual|LessOrEqual|Latch|Pulse|Delay|Mux|Demux)Node$/.test(s)
+    ) {
+      return 'Leyline Logistics / Logic (Legacy)';
+    }
+    if (s === 'Party' || s === 'PartyAutoSend' || sl.startsWith('party_node') || sl.includes('partyup')) return 'Party Up';
+    if (s === 'Ledger' || s === 'GlobalLedger' || sl === 'ledger_mod' || sl.includes('globalledger')) return 'Global Ledger';
+    if (sl === 'container_colors' || sl.includes('containercolors')) return 'Container Colors';
+    if (sl.includes('balancedcontainers') || sl.includes('productioncontainer')) return 'Balanced Containers';
+    if (sl.includes('betterzoom')) return 'Better Zoom';
+    if (sl.includes('devspawner')) return 'Dev Spawner';
+    if (sl === 'dev_item_spawner') return 'Dev Mode (Hidden)';
+    if (sl.includes('hotkeycustomizer')) return 'Hotkey Customizer (Legacy)';
+    if (sl.includes('pathfinder')) return 'PathFinder';
+    if (sl.includes('portlayouts')) return 'Port Layouts';
+    if (sl.includes('snappy')) return 'Snappy';
+    if (sl === 'foundationmoddata' || sl.includes('foundation')) return 'Foundation';
+    if (sl.includes('kingdomstudio')) return 'Kingdom Studio';
+    const m = /^urakka\.(?:kingdominc\.)?([a-z0-9_]+)/i.exec(s);
+    if (m) return m[1];
+    return 'Uninstalled / Custom Mod';
+  }
+
+  function scanModLinks(data) {
+    const p = data?.Player || {};
+    const techs = [];
+    const activeTechs = [];
+    for (const id of p.Tech || []) {
+      if (isBrokenTech(id)) {
+        techs.push({ id, source: identifyModSource(id) });
+      } else if (isInstalledModTech(id)) {
+        activeTechs.push({ id, source: identifyModSource(id) });
+      }
+    }
+
+    const newTechCount = [];
+    const activeNewTechCount = [];
+    for (const [id, count] of Object.entries(p.NewTechCount || {})) {
+      if (isBrokenTech(id)) {
+        newTechCount.push({ id, count, source: identifyModSource(id) });
+      } else if (isInstalledModTech(id)) {
+        activeNewTechCount.push({ id, count, source: identifyModSource(id) });
+      }
+    }
+
+    const worldNodes = [];
+    const worldNodesByTypeMap = {};
+    const activeWorldNodes = [];
+    const activeWorldNodesByTypeMap = {};
+    const elementBrokenLinks = [];
+    const decoModKeys = [];
+    const activeDecoKeys = [];
+    let brokenItemsCount = 0;
+    const brokenItemSamples = new Set();
+
+    const checkItemVal = (it, loc) => {
+      if (!it) return;
+      const isObj = typeof it === 'object';
+      const id = parseTypeString(isObj ? it.Type : it).id;
+      if (id && !state.maps.allItems[id]) {
+        brokenItemsCount++;
+        brokenItemSamples.add(`${id} (${loc})`);
+      }
+      if (isObj) {
+        for (const eq of it.Equipment || []) checkItemVal(eq, `${loc}.Equipment`);
+        for (const enhStr of Object.values(it.Enhancements || {})) {
+          const eid = String(enhStr).split(':')[0];
+          if (eid && !state.maps.enhancements[eid]) {
+            brokenItemsCount++;
+            brokenItemSamples.add(`${eid} (${loc}.Enhancement)`);
+          }
+        }
+      }
+    };
+
+    (p.Flows || []).forEach((fl, fi) => {
+      const flowLabel = fl.Label || `Flow #${fi + 1}`;
+      const pipes = fl.Pipes || [];
+      (fl.Elements || []).forEach((el, ei) => {
+        const type = el.ElementType || 'Unknown';
+        if (isBrokenElement(type)) {
+          const connectedPipes = pipes.filter(
+            (pp) => pp.ConnectedOutput?.Guid === el.Guid || pp.ConnectedInput?.Guid === el.Guid
+          ).length;
+          let bufferedItemsCount = 0;
+          for (const io of [...(el.Inputs || []), ...(el.Outputs || [])]) {
+            bufferedItemsCount += (io.BufferedItems || []).length;
+          }
+          const src = identifyModSource(type);
+          worldNodes.push({
+            flowIndex: fi,
+            flowLabel,
+            elIndex: ei,
+            guid: el.Guid,
+            type,
+            pos: el.Position || [0, 0],
+            connectedPipes,
+            bufferedItemsCount,
+            source: src,
+          });
+          if (!worldNodesByTypeMap[type]) {
+            worldNodesByTypeMap[type] = { type, source: src, count: 0, pipesCount: 0 };
+          }
+          worldNodesByTypeMap[type].count++;
+          worldNodesByTypeMap[type].pipesCount += connectedPipes;
+          return;
+        }
+
+        if (isInstalledModElement(type)) {
+          const src = identifyModSource(type);
+          activeWorldNodes.push({
+            flowIndex: fi,
+            flowLabel,
+            elIndex: ei,
+            guid: el.Guid,
+            type,
+            pos: el.Position || [0, 0],
+            source: src,
+          });
+          if (!activeWorldNodesByTypeMap[type]) {
+            activeWorldNodesByTypeMap[type] = { type, source: src, count: 0 };
+          }
+          activeWorldNodesByTypeMap[type].count++;
+        }
+
+        // Check valid (vanilla or installed mod) element for broken mod references
+        if (el.Recipe && !state.maps.recipes[el.Recipe]) {
+          elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: 'Recipe', value: el.Recipe, source: identifyModSource(el.Recipe) });
+        }
+        for (const k of ['Resource', 'SelectedResource', 'FilterType', 'Item', 'OutputType']) {
+          if (el[k] && !state.maps.allItems[parseTypeString(el[k]).id]) {
+            elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: k, value: el[k], source: identifyModSource(el[k]) });
+          }
+        }
+        if (Array.isArray(el.Upgrades)) {
+          el.Upgrades.forEach((u, ui) => {
+            if (u && u.Type && isBrokenUpgrade(u.Type)) {
+              elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: `Upgrades[${ui}]`, value: u.Type, source: identifyModSource(u.Type) });
+            }
+          });
+        }
+        if (el.SelectedQuest?.Quest && !state.maps.quests[el.SelectedQuest.Quest]) {
+          elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: 'SelectedQuest', value: el.SelectedQuest.Quest, source: identifyModSource(el.SelectedQuest.Quest) });
+        }
+        if (el.CurrentDungeon?.Dungeon && !state.maps.dungeons[el.CurrentDungeon.Dungeon]) {
+          elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: 'CurrentDungeon', value: el.CurrentDungeon.Dungeon, source: identifyModSource(el.CurrentDungeon.Dungeon) });
+        }
+        for (const k of Object.keys(el)) {
+          if (!VANILLA_ELEMENT_KEYS.has(k) && !isInstalledElementKey(k)) {
+            elementBrokenLinks.push({ flowIndex: fi, flowLabel, elIndex: ei, elType: type, field: k, value: '(Broken Mod JSON field)', source: identifyModSource(k) });
+          }
+        }
+
+        // Check items inside element
+        for (const io of [...(el.Inputs || []), ...(el.Outputs || [])]) {
+          for (const bi of io.BufferedItems || []) checkItemVal(bi, `${type}.IO`);
+        }
+        if (Array.isArray(el.Contents)) {
+          for (const c of el.Contents) {
+            if (c && typeof c === 'object' && ('Human' in c || 'Food' in c)) {
+              if (c.Human) checkItemVal(c.Human, `${type}.Human`);
+              if (c.Food) checkItemVal(c.Food, `${type}.Food`);
+            } else {
+              checkItemVal(c, `${type}.Contents`);
+            }
+          }
+        }
+        if (Array.isArray(el.Soldiers)) {
+          for (const sol of el.Soldiers) checkItemVal(sol, 'WarEffort.Soldiers');
+        }
+        if (Array.isArray(el.CurrentDungeon?.Party)) {
+          for (const pm of el.CurrentDungeon.Party) checkItemVal(pm, 'Dungeon.Party');
+        }
+        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem']) {
+          if (el[ik]) checkItemVal(el[ik], `${type}.${ik}`);
+        }
+      });
+
+      (fl.Decorations || []).forEach((dc, di) => {
+        for (const k of Object.keys(dc || {})) {
+          if (!VANILLA_DECO_KEYS.has(k)) {
+            if (isInstalledDecoKey(k)) {
+              activeDecoKeys.push({ flowIndex: fi, flowLabel, decoIndex: di, key: k, source: identifyModSource(k) });
+            } else {
+              decoModKeys.push({ flowIndex: fi, flowLabel, decoIndex: di, key: k, source: identifyModSource(k) });
+            }
+          }
+        }
+      });
+    });
+
+    const buildingUpgrades = [];
+    const activeBuildingUpgrades = [];
+    const seenBld = new Set();
+    const seenActiveBld = new Set();
+    for (const b of Object.keys(p.UpgradeCounts || {})) {
+      if (isBrokenElement(b)) {
+        seenBld.add(b);
+        buildingUpgrades.push({
+          building: b,
+          kind: 'Building',
+          detail: `UpgradeCounts: ${p.UpgradeCounts[b]}${p.UnlockedFlowUpgrades?.[b] ? `, Unlocked: [${p.UnlockedFlowUpgrades[b].join(', ')}]` : ''}`,
+          source: identifyModSource(b),
+        });
+      } else if (isInstalledModElement(b)) {
+        seenActiveBld.add(b);
+        activeBuildingUpgrades.push({
+          building: b,
+          kind: 'Building',
+          detail: `UpgradeCounts: ${p.UpgradeCounts[b]}`,
+          source: identifyModSource(b),
+        });
+      }
+    }
+    for (const [b, arr] of Object.entries(p.UnlockedFlowUpgrades || {})) {
+      if (isBrokenElement(b)) {
+        if (!seenBld.has(b)) {
+          buildingUpgrades.push({
+            building: b,
+            kind: 'Building',
+            detail: `Unlocked: [${(arr || []).join(', ')}]`,
+            source: identifyModSource(b),
+          });
+        }
+      } else {
+        if (isInstalledModElement(b) && !seenActiveBld.has(b)) {
+          activeBuildingUpgrades.push({
+            building: b,
+            kind: 'Building',
+            detail: `Unlocked: [${(arr || []).join(', ')}]`,
+            source: identifyModSource(b),
+          });
+        }
+        for (const u of arr || []) {
+          if (isBrokenUpgrade(u)) {
+            buildingUpgrades.push({
+              building: b,
+              upgrade: u,
+              kind: 'FlowUpgrade',
+              detail: `${b} → ${u}`,
+              source: identifyModSource(u),
+            });
+          } else if (isInstalledModUpgrade(u)) {
+            activeBuildingUpgrades.push({
+              building: b,
+              upgrade: u,
+              kind: 'FlowUpgrade',
+              detail: `${b} → ${u}`,
+              source: identifyModSource(u),
+            });
+          }
+        }
+      }
+    }
+
+    // Check Player-level items & progression tables
+    for (const k of Object.keys(p.Resources || {})) {
+      if (!state.maps.allItems[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (Resources)`); }
+    }
+    for (const k of Object.keys(p.ResourceUpgradeCount || {})) {
+      if (!state.maps.allItems[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (ResourceUpgradeCount)`); }
+    }
+    for (const k of p.RequisitionTypes || []) {
+      if (!state.maps.allItems[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (RequisitionTypes)`); }
+    }
+    for (const k of p.ForestSettings?.UnlockedItems || []) {
+      if (!state.maps.allItems[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (Forest)`); }
+    }
+    for (const k of p.FarmSettings?.UnlockedItems || []) {
+      if (!state.maps.allItems[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (Farm)`); }
+    }
+    for (const entry of p.FarmSettings?.Field || []) {
+      const crop = String(entry).split(',')[2];
+      if (crop && !state.maps.allItems[crop]) { brokenItemsCount++; brokenItemSamples.add(`${crop} (Farm.Field)`); }
+    }
+    for (const ch of p.Armory || []) {
+      for (const [itemId, arr] of Object.entries(ch || {})) {
+        if (!state.maps.allItems[itemId]) {
+          brokenItemsCount += (arr?.length || 1);
+          brokenItemSamples.add(`${itemId} (Armory)`);
+        } else {
+          for (const it of arr || []) checkItemVal(it, 'Armory');
+        }
+      }
+    }
+    for (const slotArr of p.Portal || []) {
+      for (const it of slotArr || []) checkItemVal(it, 'Portal');
+    }
+    for (const k of Object.keys(p.PrestigeNodes || {})) {
+      if (!state.maps.prestige[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (PrestigeNodes)`); }
+    }
+    for (const w of p.WarProgress || []) {
+      if (w?.War && !state.maps.wars[w.War]) { brokenItemsCount++; brokenItemSamples.add(`${w.War} (WarProgress)`); }
+    }
+    for (const q of p.QuestMeta || []) {
+      if (q?.Quest && !state.maps.quests[q.Quest]) { brokenItemsCount++; brokenItemSamples.add(`${q.Quest} (QuestMeta)`); }
+    }
+    for (const d of p.DungeonMeta || []) {
+      if (d?.Dungeon && !state.maps.dungeons[d.Dungeon]) { brokenItemsCount++; brokenItemSamples.add(`${d.Dungeon} (DungeonMeta)`); }
+    }
+    for (const did of p.UnlockedDungeons || []) {
+      if (!state.maps.dungeons[did]) { brokenItemsCount++; brokenItemSamples.add(`${did} (UnlockedDungeons)`); }
+    }
+    for (const mapName of ['Currency', 'CurrencyEarned', 'ExchangeRate']) {
+      for (const k of Object.keys(p[mapName] || {})) {
+        if (!state.maps.currencies[k]) { brokenItemsCount++; brokenItemSamples.add(`${k} (${mapName})`); }
+      }
+    }
+
+    const modSavePayloads = [];
+    const activeModSavePayloads = [];
+    const installedModIds = state.maps.installedMods?.modIds || {};
+    const hasFoundationInstalled = Object.keys(installedModIds).some((id) => id.includes('foundation'));
+
+    for (const k of Object.keys(data || {})) {
+      if (k !== 'Version' && k !== 'Player' && k !== 'Secret') {
+        if (k === 'FoundationModData' && data[k] && typeof data[k] === 'object' && !Array.isArray(data[k])) {
+          const allModKeys = Object.keys(data[k]);
+          const brokenSubKeys = allModKeys.filter((mk) => !installedModIds[mk]);
+          const activeSubKeys = allModKeys.filter((mk) => Boolean(installedModIds[mk]));
+          if (brokenSubKeys.length > 0 || (!hasFoundationInstalled && allModKeys.length === 0)) {
+            modSavePayloads.push({ scope: 'Root', key: k, subKeys: brokenSubKeys, source: 'Foundation (Uninstalled Mods)' });
+          }
+          if (activeSubKeys.length > 0) {
+            activeModSavePayloads.push({ scope: 'Root', key: k, subKeys: activeSubKeys, source: 'Foundation (Installed Mods)' });
+          }
+        } else {
+          const subKeys = data[k] && typeof data[k] === 'object' && !Array.isArray(data[k]) ? Object.keys(data[k]) : [];
+          modSavePayloads.push({ scope: 'Root', key: k, subKeys, source: identifyModSource(k) });
+        }
+      }
+    }
+    for (const k of Object.keys(p)) {
+      if (!VANILLA_PLAYER_KEYS.has(k)) {
+        const subKeys = p[k] && typeof p[k] === 'object' && !Array.isArray(p[k]) ? Object.keys(p[k]) : [];
+        modSavePayloads.push({ scope: 'Player', key: k, subKeys, source: identifyModSource(k) });
+      }
+    }
+
+    const worldNodesByType = Object.values(worldNodesByTypeMap).sort((a, b) => b.count - a.count);
+    const activeWorldNodesByType = Object.values(activeWorldNodesByTypeMap).sort((a, b) => b.count - a.count);
+    const totalIssues =
+      techs.length +
+      newTechCount.length +
+      worldNodes.length +
+      buildingUpgrades.length +
+      elementBrokenLinks.length +
+      decoModKeys.length +
+      brokenItemsCount +
+      modSavePayloads.length;
+
+    const totalActive =
+      activeTechs.length +
+      activeNewTechCount.length +
+      activeWorldNodes.length +
+      activeBuildingUpgrades.length +
+      activeDecoKeys.length +
+      activeModSavePayloads.length;
+
+    return {
+      totalIssues,
+      totalActive,
+      techs,
+      newTechCount,
+      worldNodes,
+      worldNodesByType,
+      buildingUpgrades,
+      elementBrokenLinks,
+      decoModKeys,
+      brokenItemsCount,
+      brokenItemSamples: Array.from(brokenItemSamples),
+      modSavePayloads,
+      activeTechs,
+      activeNewTechCount,
+      activeWorldNodes,
+      activeWorldNodesByType,
+      activeBuildingUpgrades,
+      activeDecoKeys,
+      activeModSavePayloads,
+    };
+  }
+
+  function cleanModTechs(s) {
+    const p = s.Player;
+    let removed = 0;
+    if (Array.isArray(p.Tech)) {
+      const before = p.Tech.length;
+      p.Tech = p.Tech.filter((id) => !isBrokenTech(id));
+      removed += before - p.Tech.length;
+    }
+    if (p.NewTechCount && typeof p.NewTechCount === 'object') {
+      for (const k of Object.keys(p.NewTechCount)) {
+        if (isBrokenTech(k)) {
+          delete p.NewTechCount[k];
+          removed++;
+        }
+      }
+    }
+    return removed;
+  }
+
+  function cleanModWorldNodes(s, onlyType = null, onlyFlowIndex = null) {
+    const p = s.Player;
+    let nodesRemoved = 0;
+    let pipesRemoved = 0;
+    (p.Flows || []).forEach((fl, fi) => {
+      if (onlyFlowIndex !== null && fi !== onlyFlowIndex) return;
+      const removedGuids = new Set();
+      const keptElements = [];
+      for (const el of fl.Elements || []) {
+        const shouldRemove = onlyType
+          ? el.ElementType === onlyType
+          : isBrokenElement(el.ElementType);
+        if (shouldRemove) {
+          if (el.Guid) removedGuids.add(el.Guid);
+          nodesRemoved++;
+        } else {
+          keptElements.push(el);
+        }
+      }
+      fl.Elements = keptElements;
+
+      const byGuid = {};
+      for (const el of fl.Elements) byGuid[el.Guid] = el;
+
+      const beforePipes = (fl.Pipes || []).length;
+      fl.Pipes = (fl.Pipes || []).filter((pp) => {
+        const og = pp.ConnectedOutput?.Guid;
+        const oi = pp.ConnectedOutput?.Index ?? 0;
+        const ig = pp.ConnectedInput?.Guid;
+        const ii = pp.ConnectedInput?.Index ?? 0;
+        if (removedGuids.has(og) || removedGuids.has(ig)) return false;
+        const src = byGuid[og];
+        const dst = byGuid[ig];
+        if (!src || !dst || oi >= (src.Outputs?.length || 0) || ii >= (dst.Inputs?.length || 0)) return false;
+        return true;
+      });
+      pipesRemoved += beforePipes - fl.Pipes.length;
+    });
+
+    state.selectedElements = [];
+    if (state.selectedKind === 'element' || state.selectedKind === 'pipe') {
+      state.selectedKind = null;
+      state.selectedIndex = -1;
+    }
+    return { nodesRemoved, pipesRemoved };
+  }
+
+  function cleanModBuildingUpgrades(s) {
+    const p = s.Player;
+    let removed = 0;
+    if (p.UpgradeCounts && typeof p.UpgradeCounts === 'object') {
+      for (const b of Object.keys(p.UpgradeCounts)) {
+        if (isBrokenElement(b)) {
+          delete p.UpgradeCounts[b];
+          removed++;
+        }
+      }
+    }
+    if (p.UnlockedFlowUpgrades && typeof p.UnlockedFlowUpgrades === 'object') {
+      for (const b of Object.keys(p.UnlockedFlowUpgrades)) {
+        if (isBrokenElement(b)) {
+          delete p.UnlockedFlowUpgrades[b];
+          removed++;
+        } else if (Array.isArray(p.UnlockedFlowUpgrades[b])) {
+          const before = p.UnlockedFlowUpgrades[b].length;
+          p.UnlockedFlowUpgrades[b] = p.UnlockedFlowUpgrades[b].filter((u) => !isBrokenUpgrade(u));
+          removed += before - p.UnlockedFlowUpgrades[b].length;
+        }
+      }
+    }
+    return removed;
+  }
+
+  function cleanModElementAndDecoLinks(s) {
+    const p = s.Player;
+    let cleaned = 0;
+    for (const fl of p.Flows || []) {
+      for (const el of fl.Elements || []) {
+        if (isBrokenElement(el.ElementType)) continue;
+        if (el.Recipe && !state.maps.recipes[el.Recipe]) {
+          delete el.Recipe;
+          delete el.Input;
+          cleaned++;
+        }
+        for (const k of ['Resource', 'SelectedResource', 'FilterType', 'Item', 'OutputType']) {
+          if (el[k] && !state.maps.allItems[parseTypeString(el[k]).id]) {
+            delete el[k];
+            cleaned++;
+          }
+        }
+        if (Array.isArray(el.Upgrades)) {
+          for (let i = 0; i < el.Upgrades.length; i++) {
+            const u = el.Upgrades[i];
+            if (u && u.Type && isBrokenUpgrade(u.Type)) {
+              el.Upgrades[i] = null;
+              cleaned++;
+            }
+          }
+          if (el.Upgrades.every((u) => u === null)) delete el.Upgrades;
+        }
+        if (el.SelectedQuest?.Quest && !state.maps.quests[el.SelectedQuest.Quest]) {
+          delete el.SelectedQuest;
+          cleaned++;
+        }
+        if (el.CurrentDungeon?.Dungeon && !state.maps.dungeons[el.CurrentDungeon.Dungeon]) {
+          delete el.CurrentDungeon;
+          cleaned++;
+        }
+        for (const k of Object.keys(el)) {
+          if (!VANILLA_ELEMENT_KEYS.has(k) && !isInstalledElementKey(k)) {
+            delete el[k];
+            cleaned++;
+          }
+        }
+      }
+      for (const dc of fl.Decorations || []) {
+        for (const k of Object.keys(dc || {})) {
+          if (!VANILLA_DECO_KEYS.has(k) && !isInstalledDecoKey(k)) {
+            delete dc[k];
+            cleaned++;
+          }
+        }
+      }
+    }
+    return cleaned;
+  }
+
+  function cleanModItemsAndPayloads(s) {
+    const p = s.Player;
+    let cleaned = 0;
+
+    const isValidItem = (it) => {
+      if (!it) return false;
+      const id = parseTypeString(typeof it === 'object' ? it.Type : it).id;
+      return Boolean(id && state.maps.allItems[id]);
+    };
+
+    const sanitizeItem = (it) => {
+      if (it && typeof it === 'object') {
+        if (Array.isArray(it.Equipment)) {
+          const b = it.Equipment.length;
+          it.Equipment = it.Equipment.filter(isValidItem).map(sanitizeItem);
+          cleaned += b - it.Equipment.length;
+        }
+        if (it.Enhancements && typeof it.Enhancements === 'object') {
+          for (const [slot, enhStr] of Object.entries(it.Enhancements)) {
+            const eid = String(enhStr).split(':')[0];
+            if (!state.maps.enhancements[eid]) {
+              delete it.Enhancements[slot];
+              cleaned++;
+            }
+          }
+        }
+      }
+      return it;
+    };
+
+    const cleanItemArray = (arr) => {
+      if (!Array.isArray(arr)) return arr;
+      const b = arr.length;
+      const out = arr.filter(isValidItem).map(sanitizeItem);
+      cleaned += b - out.length;
+      return out;
+    };
+
+    for (const fl of p.Flows || []) {
+      for (const el of fl.Elements || []) {
+        for (const io of [...(el.Inputs || []), ...(el.Outputs || [])]) {
+          if (Array.isArray(io.BufferedItems)) io.BufferedItems = cleanItemArray(io.BufferedItems);
+        }
+        if (Array.isArray(el.Soldiers)) el.Soldiers = cleanItemArray(el.Soldiers);
+        if (Array.isArray(el.CurrentDungeon?.Party)) el.CurrentDungeon.Party = cleanItemArray(el.CurrentDungeon.Party);
+        if (Array.isArray(el.Contents)) {
+          if (el.ElementType === 'Inn' || el.ElementType === 'TrainingGrounds') {
+            for (const slot of el.Contents) {
+              if (!slot || typeof slot !== 'object') continue;
+              if (slot.Human) {
+                if (!isValidItem(slot.Human)) { delete slot.Human; cleaned++; }
+                else sanitizeItem(slot.Human);
+              }
+              if (slot.Food) {
+                if (!isValidItem(slot.Food)) { delete slot.Food; cleaned++; }
+                else sanitizeItem(slot.Food);
+              }
+            }
+          } else {
+            el.Contents = cleanItemArray(el.Contents);
+          }
+        }
+        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem']) {
+          if (el[ik]) {
+            if (!isValidItem(el[ik])) { delete el[ik]; cleaned++; }
+            else sanitizeItem(el[ik]);
+          }
+        }
+      }
+    }
+
+    for (const mapName of ['Resources', 'ResourceUpgradeCount']) {
+      if (p[mapName] && typeof p[mapName] === 'object') {
+        for (const k of Object.keys(p[mapName])) {
+          if (!state.maps.allItems[k]) { delete p[mapName][k]; cleaned++; }
+        }
+      }
+    }
+    if (Array.isArray(p.RequisitionTypes)) {
+      const b = p.RequisitionTypes.length;
+      p.RequisitionTypes = p.RequisitionTypes.filter((k) => Boolean(state.maps.allItems[k]));
+      cleaned += b - p.RequisitionTypes.length;
+    }
+    if (Array.isArray(p.ForestSettings?.UnlockedItems)) {
+      const b = p.ForestSettings.UnlockedItems.length;
+      p.ForestSettings.UnlockedItems = p.ForestSettings.UnlockedItems.filter((k) => Boolean(state.maps.allItems[k]));
+      cleaned += b - p.ForestSettings.UnlockedItems.length;
+    }
+    if (Array.isArray(p.FarmSettings?.UnlockedItems)) {
+      const b = p.FarmSettings.UnlockedItems.length;
+      p.FarmSettings.UnlockedItems = p.FarmSettings.UnlockedItems.filter((k) => Boolean(state.maps.allItems[k]));
+      cleaned += b - p.FarmSettings.UnlockedItems.length;
+    }
+    if (Array.isArray(p.FarmSettings?.Field)) {
+      const b = p.FarmSettings.Field.length;
+      p.FarmSettings.Field = p.FarmSettings.Field.filter((entry) => {
+        const crop = String(entry).split(',')[2];
+        return Boolean(!crop || state.maps.allItems[crop]);
+      });
+      cleaned += b - p.FarmSettings.Field.length;
+    }
+    for (const ch of p.Armory || []) {
+      if (!ch || typeof ch !== 'object') continue;
+      for (const k of Object.keys(ch)) {
+        if (!state.maps.allItems[k]) {
+          delete ch[k];
+          cleaned++;
+        } else if (Array.isArray(ch[k])) {
+          ch[k] = cleanItemArray(ch[k]);
+          if (!ch[k].length) delete ch[k];
+        }
+      }
+    }
+    if (Array.isArray(p.Portal)) {
+      for (let i = 0; i < p.Portal.length; i++) {
+        if (Array.isArray(p.Portal[i])) {
+          p.Portal[i] = cleanItemArray(p.Portal[i]);
+          if (!p.Portal[i].length) p.Portal[i] = null;
+        }
+      }
+    }
+    if (p.PrestigeNodes && typeof p.PrestigeNodes === 'object') {
+      for (const k of Object.keys(p.PrestigeNodes)) {
+        if (!state.maps.prestige[k]) { delete p.PrestigeNodes[k]; cleaned++; }
+      }
+    }
+    if (Array.isArray(p.WarProgress)) {
+      const b = p.WarProgress.length;
+      p.WarProgress = p.WarProgress.filter((w) => Boolean(w?.War && state.maps.wars[w.War]));
+      cleaned += b - p.WarProgress.length;
+    }
+    if (Array.isArray(p.QuestMeta)) {
+      const b = p.QuestMeta.length;
+      p.QuestMeta = p.QuestMeta.filter((q) => Boolean(q?.Quest && state.maps.quests[q.Quest]));
+      cleaned += b - p.QuestMeta.length;
+    }
+    if (Array.isArray(p.DungeonMeta)) {
+      const b = p.DungeonMeta.length;
+      p.DungeonMeta = p.DungeonMeta.filter((d) => Boolean(d?.Dungeon && state.maps.dungeons[d.Dungeon]));
+      cleaned += b - p.DungeonMeta.length;
+    }
+    if (Array.isArray(p.UnlockedDungeons)) {
+      const b = p.UnlockedDungeons.length;
+      p.UnlockedDungeons = p.UnlockedDungeons.filter((id) => Boolean(state.maps.dungeons[id]));
+      cleaned += b - p.UnlockedDungeons.length;
+    }
+    for (const mapName of ['Currency', 'CurrencyEarned', 'ExchangeRate']) {
+      if (p[mapName] && typeof p[mapName] === 'object') {
+        for (const k of Object.keys(p[mapName])) {
+          if (!state.maps.currencies[k]) { delete p[mapName][k]; cleaned++; }
+        }
+      }
+    }
+
+    const installedModIds = state.maps.installedMods?.modIds || {};
+    const hasFoundationInstalled = Object.keys(installedModIds).some((id) => id.includes('foundation'));
+    for (const k of Object.keys(s)) {
+      if (k !== 'Version' && k !== 'Player' && k !== 'Secret') {
+        if (k === 'FoundationModData' && s[k] && typeof s[k] === 'object' && !Array.isArray(s[k])) {
+          for (const mk of Object.keys(s[k])) {
+            if (!installedModIds[mk]) {
+              delete s[k][mk];
+              cleaned++;
+            }
+          }
+          if (Object.keys(s[k]).length === 0 && !hasFoundationInstalled) {
+            delete s[k];
+            cleaned++;
+          }
+        } else {
+          delete s[k];
+          cleaned++;
+        }
+      }
+    }
+    for (const k of Object.keys(p)) {
+      if (!VANILLA_PLAYER_KEYS.has(k)) {
+        delete p[k];
+        cleaned++;
+      }
+    }
+    return cleaned;
+  }
+
+  function cleanAllBrokenModLinks(s) {
+    cleanModTechs(s);
+    cleanModWorldNodes(s, null, null);
+    cleanModBuildingUpgrades(s);
+    cleanModElementAndDecoLinks(s);
+    cleanModItemsAndPayloads(s);
   }
 
   // --- TAB 6.5: Bloat Scanner & Cleaner ---
@@ -4258,9 +5356,179 @@
 
   function renderCleanerTab(root) {
     const scan = scanSaveBloat(state.data);
+    const modScan = scanModLinks(state.data);
     const opts = state.cleanerOpts;
+    const techIssuesCount = modScan.techs.length + modScan.newTechCount.length;
+    const elDecoIssuesCount = modScan.elementBrokenLinks.length + modScan.decoModKeys.length;
+    const itemPayloadIssuesCount = modScan.brokenItemsCount + modScan.modSavePayloads.length;
+    const totalModPipes = modScan.worldNodesByType.reduce((a, b) => a + b.pipesCount, 0);
+    const installedPlugins = state.maps.installedMods?.plugins || [];
 
     root.innerHTML = `
+      <div class="card" style="margin-bottom:14px;border-color:${modScan.totalIssues > 0 ? 'rgba(244,91,105,0.45)' : 'var(--border)'};">
+        <div class="card-header">
+          <span class="card-title">
+            <span>🔗 Broken Mod Links &amp; Uninstalled Mod Cleaner</span>
+            <span class="badge ${modScan.totalIssues > 0 ? 'red' : 'green'}">${modScan.totalIssues > 0 ? `${modScan.totalIssues} Broken Link${modScan.totalIssues === 1 ? '' : 's'} Found` : '✓ 0 Broken Mod Links'}</span>
+            ${modScan.totalActive > 0 ? `<span class="badge accent">✓ ${modScan.totalActive} Active Mod Link${modScan.totalActive === 1 ? '' : 's'} Preserved</span>` : ''}
+          </span>
+          <div class="row">
+            <button id="mod-rescan-plugins" class="sm" title="Rescan BepInEx/plugins for currently installed mods">↻ Rescan Installed Mods (${installedPlugins.length} DLLs)</button>
+            <button id="mod-clean-all" class="sm ${modScan.totalIssues > 0 ? 'primary' : ''}" ${modScan.totalIssues === 0 ? 'disabled' : ''}>🔗 Remove All Broken Mod Links (${modScan.totalIssues})</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);">
+          Compares every Tech ID, World Node <code>ElementType</code>, <code>FlowUpgrade</code>, Decoration key, and Save payload against <strong>Vanilla 1.0.14</strong> + your <strong>${installedPlugins.length} currently installed plugins</strong> in <code>BepInEx/plugins</code>.
+          <strong>Active installed mod links are kept intact</strong> — only broken links from uninstalled or obsolete mods are flagged and removed.
+        </div>
+
+        <div class="grid grid-2">
+          <!-- 1. Tech Tree Mod Links -->
+          <div class="bloat-stat-card" style="border-color:${techIssuesCount > 0 ? 'rgba(244,91,105,0.45)' : 'var(--border)'};">
+            <div class="row">
+              <strong>🌳 Broken Tech Tree Links (<code>Tech</code> &amp; <code>NewTechCount</code>)</strong>
+              <span class="spacer"></span>
+              <span class="badge ${techIssuesCount > 0 ? 'red' : 'green'}">${techIssuesCount} broken</span>
+              ${techIssuesCount > 0 ? `<button id="mod-clean-techs" class="xs danger">Remove Broken (${techIssuesCount})</button>` : ''}
+            </div>
+            ${techIssuesCount > 0 ? `
+              <div style="font-size:11px;color:var(--text-muted);">
+                ${modScan.techs.length} broken tech(s) in <code>Player.Tech</code>${modScan.newTechCount.length ? ` · <span style="color:var(--red);font-weight:600;">${modScan.newTechCount.length} in NewTechCount (crashes load!)</span>` : ''}. Click any chip to remove individually:
+              </div>
+              <div class="row" style="max-height:130px;overflow-y:auto;">
+                ${modScan.techs.map((t) => `
+                  <span class="item-chip mod-del-tech" data-id="${esc(t.id)}" title="Click to remove broken tech from Player.Tech">
+                    <span class="mono">${esc(t.id)}</span>
+                    <span class="badge gold">${esc(t.source)}</span>
+                    <span class="badge red">✕</span>
+                  </span>
+                `).join('')}
+                ${modScan.newTechCount.map((nt) => `
+                  <span class="item-chip mod-del-newtech" data-id="${esc(nt.id)}" title="Click to remove broken key from Player.NewTechCount (fixes load crash)">
+                    <span class="mono">${esc(nt.id)} (New:${nt.count})</span>
+                    <span class="badge red">CRASH · ✕</span>
+                  </span>
+                `).join('')}
+              </div>
+            ` : `<div style="font-size:11.5px;color:var(--green);">✓ No broken Tech Tree IDs (${modScan.activeTechs.length} active installed mod tech(s) preserved).</div>`}
+          </div>
+
+          <!-- 2. World Nodes (Flow Elements) -->
+          <div class="bloat-stat-card" style="border-color:${modScan.worldNodes.length > 0 ? 'rgba(244,91,105,0.45)' : 'var(--border)'};">
+            <div class="row">
+              <strong>🏗 Broken World Nodes (<code>Flows[*].Elements</code> &amp; Pipes)</strong>
+              <span class="spacer"></span>
+              <span class="badge ${modScan.worldNodes.length > 0 ? 'red' : 'green'}">${modScan.worldNodes.length} broken</span>
+              ${modScan.worldNodes.length > 0 ? `<button id="mod-clean-nodes" class="xs danger">Remove Broken (${modScan.worldNodes.length})</button>` : ''}
+            </div>
+            ${modScan.worldNodes.length > 0 ? `
+              <div style="font-size:11px;color:var(--text-muted);">
+                ${modScan.worldNodes.length} broken world node(s) across flows (${totalModPipes} connected pipe endpoint(s) will also be disconnected). Click a node type to remove all of that type:
+              </div>
+              <div class="row">
+                ${modScan.worldNodesByType.map((g) => `
+                  <span class="item-chip mod-del-nodetype" data-type="${esc(g.type)}" title="Click to remove all ${g.count} broken ${esc(g.type)} node(s) and their connected pipes">
+                    <span class="mono">${esc(g.type)}</span>
+                    <span class="badge gold">×${g.count} · ${esc(g.source)}</span>
+                    <span class="badge red">✕</span>
+                  </span>
+                `).join('')}
+              </div>
+            ` : `<div style="font-size:11.5px;color:var(--green);">✓ No broken World Nodes (${modScan.activeWorldNodes.length} active installed mod world node(s) preserved).</div>`}
+          </div>
+
+          <!-- 3. Building Upgrade Slot Counts & UnlockedFlowUpgrades -->
+          <div class="bloat-stat-card" style="border-color:${modScan.buildingUpgrades.length > 0 ? 'rgba(244,91,105,0.45)' : 'var(--border)'};">
+            <div class="row">
+              <strong>⚙ Broken Building Upgrades (<code>UpgradeCounts</code> / <code>UnlockedFlowUpgrades</code>)</strong>
+              <span class="spacer"></span>
+              <span class="badge ${modScan.buildingUpgrades.length > 0 ? 'red' : 'green'}">${modScan.buildingUpgrades.length} broken</span>
+              ${modScan.buildingUpgrades.length > 0 ? `<button id="mod-clean-bld-upgs" class="xs danger">Remove Broken (${modScan.buildingUpgrades.length})</button>` : ''}
+            </div>
+            ${modScan.buildingUpgrades.length > 0 ? `
+              <div style="font-size:11px;color:var(--text-muted);">Broken building types or uninstalled FlowUpgrade classes in player upgrade tables:</div>
+              <div class="row">
+                ${modScan.buildingUpgrades.map((bu) => `
+                  <span class="item-chip mod-del-bld-upg" data-kind="${esc(bu.kind)}" data-b="${esc(bu.building)}" data-u="${esc(bu.upgrade || '')}" title="${esc(bu.detail)} — Click to remove">
+                    <span class="mono">${esc(bu.kind === 'Building' ? bu.building : `${bu.building}:${bu.upgrade}`)}</span>
+                    <span class="badge gold">${esc(bu.source)}</span>
+                    <span class="badge red">✕</span>
+                  </span>
+                `).join('')}
+              </div>
+            ` : `<div style="font-size:11.5px;color:var(--green);">✓ No broken building types or FlowUpgrades (${modScan.activeBuildingUpgrades.length} active mod upgrade entry/entries preserved).</div>`}
+          </div>
+
+          <!-- 4. Vanilla Element / Deco Mod Links & Mod Payloads -->
+          <div class="bloat-stat-card" style="border-color:${(elDecoIssuesCount + itemPayloadIssuesCount) > 0 ? 'rgba(228,180,76,0.45)' : 'var(--border)'};">
+            <div class="row">
+              <strong>🧩 Broken Deco / Element Keys, Items &amp; Uninstalled Payloads</strong>
+              <span class="spacer"></span>
+              <span class="badge ${(elDecoIssuesCount + itemPayloadIssuesCount) > 0 ? 'gold' : 'green'}">${elDecoIssuesCount + itemPayloadIssuesCount} broken</span>
+              ${elDecoIssuesCount > 0 ? `<button id="mod-clean-el-deco" class="xs danger">Clean Broken Keys (${elDecoIssuesCount})</button>` : ''}
+              ${itemPayloadIssuesCount > 0 ? `<button id="mod-clean-payloads" class="xs danger">Clean Broken Payloads (${itemPayloadIssuesCount})</button>` : ''}
+            </div>
+            ${(elDecoIssuesCount + itemPayloadIssuesCount) > 0 ? `
+              <div class="row" style="font-size:11px;color:var(--text-muted);">
+                ${modScan.elementBrokenLinks.length > 0 ? `<span class="badge red">Broken Node Refs: ${modScan.elementBrokenLinks.length}</span>` : ''}
+                ${modScan.decoModKeys.length > 0 ? `<span class="badge gold">Broken Deco Keys: ${modScan.decoModKeys.length} (${Array.from(new Set(modScan.decoModKeys.map((d) => d.key))).join(', ')})</span>` : ''}
+                ${modScan.brokenItemsCount > 0 ? `<span class="badge red">Unknown Items/Refs: ${modScan.brokenItemsCount} (${modScan.brokenItemSamples.slice(0, 4).join(', ')})</span>` : ''}
+                ${modScan.modSavePayloads.map((mp) => `<span class="badge gold">${esc(mp.scope)}.${esc(mp.key)}${mp.subKeys.length ? ` (${mp.subKeys.join(', ')})` : ''}</span>`).join('')}
+              </div>
+            ` : `<div style="font-size:11.5px;color:var(--green);">✓ No broken element/decoration keys, items, or uninstalled mod payloads.</div>`}
+          </div>
+        </div>
+
+        ${modScan.totalActive > 0 ? `
+          <div class="inspector-section" style="margin-top:6px;border-color:rgba(63,201,127,0.35);background:rgba(63,201,127,0.05);">
+            <h4>
+              <span style="color:var(--green);">✓ Active Installed Mod Links Preserved (${modScan.totalActive})</span>
+              <span style="font-size:11px;color:var(--text-muted);font-weight:400;">Provided by plugins in <code>BepInEx/plugins</code> — NOT removed by broken link cleanup</span>
+            </h4>
+            <div class="row" style="font-size:11px;">
+              ${modScan.activeTechs.length ? `<span class="badge accent">Active Mod Techs: ${modScan.activeTechs.length} (${modScan.activeTechs.map((t) => t.id).join(', ')})</span>` : ''}
+              ${modScan.activeWorldNodesByType.map((g) => `<span class="badge accent">World Node: ${esc(g.type)} ×${g.count} (${esc(g.source)})</span>`).join('')}
+              ${modScan.activeBuildingUpgrades.map((bu) => `<span class="badge accent">Upgrade: ${esc(bu.kind === 'Building' ? bu.building : `${bu.building}:${bu.upgrade}`)} (${esc(bu.source)})</span>`).join('')}
+              ${modScan.activeDecoKeys.length ? `<span class="badge accent">Deco Mod Keys: ${modScan.activeDecoKeys.length} (${Array.from(new Set(modScan.activeDecoKeys.map((d) => d.key))).join(', ')})</span>` : ''}
+              ${modScan.activeModSavePayloads.map((mp) => `<span class="badge accent">${esc(mp.scope)}.${esc(mp.key)} (${mp.subKeys.length} active mod(s))</span>`).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        ${modScan.worldNodes.length > 0 ? `
+          <div class="inspector-section" style="margin-top:4px;">
+            <h4>
+              <span>Broken Mod World Nodes Across Flows (${modScan.worldNodes.length})</span>
+              <span style="font-size:11px;color:var(--text-muted);font-weight:400;">Inspect on canvas or remove individual broken nodes</span>
+            </h4>
+            <div style="max-height:220px;overflow-y:auto;">
+              <table class="data-table">
+                <thead><tr><th>Flow</th><th>ElementType</th><th>Mod Source</th><th>Position</th><th>Connected Pipes</th><th>Buffered Items</th><th>Actions</th></tr></thead>
+                <tbody>
+                  ${modScan.worldNodes.slice(0, 60).map((wn) => `
+                    <tr>
+                      <td>${esc(wn.flowLabel)}</td>
+                      <td><strong class="mono" style="color:var(--red);">${esc(wn.type)}</strong></td>
+                      <td><span class="badge gold">${esc(wn.source)}</span></td>
+                      <td class="mono">(${wn.pos.join(', ')})</td>
+                      <td>${wn.connectedPipes}</td>
+                      <td>${wn.bufferedItemsCount}</td>
+                      <td>
+                        <div class="row">
+                          <button class="xs accent cl-jump" data-fi="${wn.flowIndex}" data-ei="${wn.elIndex}">Inspect</button>
+                          <button class="xs danger mod-del-single-node" data-fi="${wn.flowIndex}" data-guid="${esc(wn.guid)}" data-type="${esc(wn.type)}">Remove</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                  ${modScan.worldNodes.length > 60 ? `<tr><td colspan="7" style="color:var(--text-muted);text-align:center;">+ ${modScan.worldNodes.length - 60} more broken world nodes (use type chips or Remove Broken above)</td></tr>` : ''}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
       <div class="card" style="margin-bottom:14px;">
         <div class="card-header">
           <span class="card-title">🧹 Save Size &amp; Bloat Scanner — ${formatBytes(scan.totalBytes)} JSON</span>
@@ -4376,6 +5644,121 @@
         </div>
       </div>
     `;
+
+    $('mod-rescan-plugins')?.addEventListener('click', async () => {
+      try {
+        const cat = await api('/api/catalog');
+        state.catalog = cat;
+        buildCatalogMaps(cat);
+        renderActiveTab();
+        toast(`Rescanned BepInEx/plugins (${(cat.installedMods?.plugins || []).length} installed plugin DLLs detected)`, 'ok');
+      } catch (err) {
+        toast(`Failed to rescan plugins: ${err.message}`, 'err');
+      }
+    });
+
+    $('mod-clean-all')?.addEventListener('click', () => {
+      const before = JSON.stringify(state.data).length;
+      commitChange('Remove all broken mod links (preserving installed mods)', cleanAllBrokenModLinks);
+      const after = JSON.stringify(state.data).length;
+      toast(`Removed all broken mod links (${formatBytes(before)} → ${formatBytes(after)}). Active installed mod links preserved!`, 'ok');
+    });
+
+    $('mod-clean-techs')?.addEventListener('click', () => {
+      let cnt = 0;
+      commitChange('Remove broken tech tree links', (s) => { cnt = cleanModTechs(s); });
+      toast(`Removed ${cnt} broken tech tree link(s)`, 'ok');
+    });
+
+    document.querySelectorAll('.mod-del-tech').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.id;
+        commitChange(`Remove broken tech ${id}`, (s) => {
+          s.Player.Tech = (s.Player.Tech || []).filter((x) => x !== id);
+        });
+        toast(`Removed broken tech: ${id}`, 'ok');
+      });
+    });
+
+    document.querySelectorAll('.mod-del-newtech').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const id = chip.dataset.id;
+        commitChange(`Remove broken NewTechCount ${id}`, (s) => {
+          if (s.Player.NewTechCount) delete s.Player.NewTechCount[id];
+        });
+        toast(`Removed broken NewTechCount key: ${id}`, 'ok');
+      });
+    });
+
+    $('mod-clean-nodes')?.addEventListener('click', () => {
+      let r = { nodesRemoved: 0, pipesRemoved: 0 };
+      commitChange('Remove all broken world nodes', (s) => { r = cleanModWorldNodes(s, null, null); });
+      toast(`Removed ${r.nodesRemoved} broken world node(s) and ${r.pipesRemoved} connected pipe(s)`, 'ok');
+    });
+
+    document.querySelectorAll('.mod-del-nodetype').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const t = chip.dataset.type;
+        let r = { nodesRemoved: 0, pipesRemoved: 0 };
+        commitChange(`Remove all broken ${t} world nodes`, (s) => { r = cleanModWorldNodes(s, t, null); });
+        toast(`Removed ${r.nodesRemoved} ${t} node(s) and ${r.pipesRemoved} connected pipe(s)`, 'ok');
+      });
+    });
+
+    document.querySelectorAll('.mod-del-single-node').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const fi = parseInt(btn.dataset.fi, 10);
+        const guid = btn.dataset.guid;
+        const type = btn.dataset.type;
+        commitChange(`Remove broken node ${type}`, (s) => {
+          const fl = s.Player.Flows[fi];
+          if (!fl) return;
+          fl.Elements = (fl.Elements || []).filter((el) => el.Guid !== guid);
+          fl.Pipes = (fl.Pipes || []).filter(
+            (pp) => pp.ConnectedOutput?.Guid !== guid && pp.ConnectedInput?.Guid !== guid
+          );
+          if (state.activeFlowIndex === fi && (state.selectedKind === 'element' || state.selectedKind === 'pipe')) {
+            state.selectedKind = null;
+            state.selectedIndex = -1;
+            state.selectedElements = [];
+          }
+        });
+        toast(`Removed ${type} node and its connected pipes`, 'ok');
+      });
+    });
+
+    $('mod-clean-bld-upgs')?.addEventListener('click', () => {
+      let cnt = 0;
+      commitChange('Remove broken building upgrade entries', (s) => { cnt = cleanModBuildingUpgrades(s); });
+      toast(`Removed ${cnt} broken building upgrade entry/entries`, 'ok');
+    });
+
+    document.querySelectorAll('.mod-del-bld-upg').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const { kind, b, u } = chip.dataset;
+        commitChange(`Remove broken upgrade ref ${b}${u ? ':' + u : ''}`, (s) => {
+          if (kind === 'Building') {
+            if (s.Player.UpgradeCounts) delete s.Player.UpgradeCounts[b];
+            if (s.Player.UnlockedFlowUpgrades) delete s.Player.UnlockedFlowUpgrades[b];
+          } else if (s.Player.UnlockedFlowUpgrades?.[b]) {
+            s.Player.UnlockedFlowUpgrades[b] = s.Player.UnlockedFlowUpgrades[b].filter((x) => x !== u);
+          }
+        });
+        toast(`Removed broken upgrade reference: ${b}${u ? ':' + u : ''}`, 'ok');
+      });
+    });
+
+    $('mod-clean-el-deco')?.addEventListener('click', () => {
+      let cnt = 0;
+      commitChange('Clean broken element & decoration mod keys', (s) => { cnt = cleanModElementAndDecoLinks(s); });
+      toast(`Cleaned ${cnt} broken element/decoration mod link(s)`, 'ok');
+    });
+
+    $('mod-clean-payloads')?.addEventListener('click', () => {
+      let cnt = 0;
+      commitChange('Clean unknown items & uninstalled mod save payloads', (s) => { cnt = cleanModItemsAndPayloads(s); });
+      toast(`Cleaned ${cnt} unknown item(s) and uninstalled mod save payload(s)`, 'ok');
+    });
 
     $('cl-war-keep')?.addEventListener('change', (e) => { opts.warKeep = Math.max(0, parseInt(e.target.value, 10) || 0); });
     $('cl-io-keep')?.addEventListener('change', (e) => { opts.ioKeep = Math.max(0, parseInt(e.target.value, 10) || 0); });

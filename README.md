@@ -14,7 +14,9 @@ A standalone local save editor for **Kingdom Inc** (`1.0.14+` and modded saves),
 - **Deep Item, Equipment & Adventurer Editor**: Edit item types, quality (`:q`), seeds (`:s`), stats, enhancements (`Engrave`, `Enchant`, `Blessing`), combatant health/energy/level, and recursively inspect or edit equipped gear.
 - **Armory & Portal Matrix**: Inspect and edit all 8 color-coded Armory channels and the 8x8 (64-slot) Portal network.
 - **Wars, Dungeons, Quests & Building Upgrades**: Edit progress across all 4 Wars, 6 Dungeons (unlocks and per-stage clears/wipes), 14 Quests, `UpgradeCounts`, and `UnlockedFlowUpgrades`.
-- **Save Bloat Scanner & Cleaner**: Diagnoses oversized saves (`WarEffort.Soldiers`, `FlowIO.BufferedItems`, `Stockpile.Contents`, `Armory`, `Portal`, orphaned/duplicate pipes, redundant pipe waypoints, default fields, and verbose floats) with one-click lossless cleanup and configurable trimmers.
+- **Save Bloat & Broken Mod Link Cleaner**:
+  - **Broken Mod Links & Uninstalled Mod Cleaner**: Dynamically scans `BepInEx/plugins` to detect currently installed mods and preserves their active links, while flagging and removing **only broken links** from uninstalled or obsolete mods across the **Tech Tree** (`Player.Tech` and `Player.NewTechCount` notification keys that crash save loading), **World Nodes** (`Flows[*].Elements` and their connected pipes, individually, by node type, by flow, or all at once), **Building Upgrades** (`UpgradeCounts` and `UnlockedFlowUpgrades`), **Element / Decoration Mod Extensions**, and **Mod Save Payloads** (`FoundationModData` entries for uninstalled mods).
+  - **Save Size & Bloat Trimmer**: Diagnoses oversized saves (`WarEffort.Soldiers`, `FlowIO.BufferedItems`, `Stockpile.Contents`, `Armory`, `Portal`, orphaned/duplicate pipes, redundant pipe waypoints, default fields, and verbose floats) with one-click lossless cleanup and configurable trimmers.
 - **Register & Raw JSON**: Edit `Register` (`Flags`, `Counters`, `Data`) and full raw JSON, preserving all modded fields losslessly.
 
 ## Installation & Usage

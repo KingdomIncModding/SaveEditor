@@ -1,9 +1,9 @@
 {
     "id":  "SaveEditor",
     "name":  "Kingdom Inc Save Editor",
-    "version":  "1.0.1",
+    "version":  "1.0.2",
     "author":  "Urakka",
-    "description":  "Requires Python 3.10+ (Windows). Standalone browser-based Save Editor for Kingdom Inc 1.0.14+ with full currency, tech tree, prestige, farm, forest, armory, portal, adventure, item/adventurer, bloat cleaner, and visual flow diagram editing.",
+    "description":  "Requires Python 3.10+ (Windows). Standalone browser-based Save Editor for Kingdom Inc 1.0.14+ with full currency, tech tree, prestige, farm, forest, armory, portal, adventure, item/adventurer, broken mod link & bloat cleaner, and visual flow diagram editing.",
     "repository":  {
                        "platform":  "GitHub",
                        "owner":  "KingdomIncModding",
@@ -16,7 +16,7 @@
                                       "save-editor",
                                       "tool"
                                   ],
-                       "latestTag":  "v1.0.1"
+                       "latestTag":  "v1.0.2"
                    },
     "distribution":  {
                          "nexus":  {
@@ -36,7 +36,7 @@
                      },
     "publishing":  {
                        "archivePreviousReleases":  true,
-                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.1",
+                       "githubReleases":  "https://github.com/KingdomIncModding/SaveEditor/releases/tag/v1.0.2",
                        "nexusMods":  "https://www.nexusmods.com/kingdominc/mods/29"
                    }
 }

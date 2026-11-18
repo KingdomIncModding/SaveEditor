@@ -173,6 +173,34 @@ def extract_catalog() -> dict:
         elif kind == 7:
             dungeons_cat.append(item_copy)
 
+    # Filter out any modded / DevMode entries from game-catalog.json using 1.0.14 C# source
+    tech_dir = SRC_1014 / 'Assets.Source.Player.Tech'
+    if tech_dir.is_dir():
+        tech_txt = '\n'.join(f.read_text(encoding='utf-8', errors='ignore') for f in sorted(tech_dir.glob('*.cs')))
+        vanilla_tech_ids = set(re.findall(r'new TechNode\("([^"]+)"\)', tech_txt))
+        vanilla_tech_ids.discard('dev_item_spawner')
+        for m in re.finditer(r'AddDefaultUpgrades\("([^"]+)"', tech_txt):
+            s = re.sub(r'(?<!^)(?=[A-Z])', '_', m.group(1)).lower()
+            for suf in ('_automation', '_automation_2', '_automation_3', '_productivity', '_quality'):
+                vanilla_tech_ids.add(s + suf)
+        for helper_name, suf in (
+            ('UpgradeWorker', '_automation'),
+            ('UpgradeSlot2', '_automation_2'),
+            ('UpgradeSlot3', '_automation_3'),
+            ('UpgradeQuality', '_quality'),
+            ('UpgradeProductivity', '_productivity'),
+            ('UpgradeCoffers', '_coffers'),
+        ):
+            for m in re.finditer(rf'{helper_name}\("([^"]+)"', tech_txt):
+                s = re.sub(r'(?<!^)(?=[A-Z])', '_', m.group(1)).lower()
+                vanilla_tech_ids.add(s + suf)
+        techs = [t for t in techs if t.get('Id') in vanilla_tech_ids]
+
+    el_dir = SRC_1014 / 'Assets.Source.Flow.Elements'
+    if el_dir.is_dir():
+        vanilla_el_ids = {f.stem for f in el_dir.glob('*.cs')} - {'RecipeElement', 'ResourceElement', 'InnSlot', 'TrainingGroundsSlot'}
+        elements = [e for e in elements if e.get('Id') in vanilla_el_ids]
+
     # Enrich from 1.0.14 C# source
     prestige_nodes = []
     pnode_path = SRC_1014 / 'Assets.Source.Player' / 'PrestigeNode.cs'
@@ -445,6 +473,246 @@ def load_or_extract_catalog() -> dict:
     return {}
 
 
+KNOWN_MOD_DEFS = {
+    'AudioManager': {
+        'modId': 'urakka.kingdominc.audiomanager',
+        'name': 'Audio Manager',
+    },
+    'BalancedContainers': {
+        'modId': 'urakka.kingdominc.balancedcontainers',
+        'name': 'Balanced Containers',
+        'decoKeys': ['urakka.balancedcontainers', 'urakka.productioncontainer'],
+    },
+    'BetterDeconstruct': {
+        'modId': 'urakka.kingdominc.betterdeconstruct',
+        'name': 'Better Deconstruct',
+    },
+    'BetterZoom': {
+        'modId': 'urakka.kingdominc.betterzoom',
+        'name': 'Better Zoom',
+        'techs': ['urakka.kingdominc.betterzoom.unlock'],
+    },
+    'BottleneckHeatmap': {
+        'modId': 'urakka.kingdominc.bottleneckheatmap',
+        'name': 'Bottleneck Heatmap',
+        'techs': ['urakka.kingdominc.bottleneckheatmap.unlock'],
+    },
+    'ContainerColors': {
+        'modId': 'urakka.kingdominc.containercolors',
+        'name': 'Container Colors',
+        'techs': ['container_colors'],
+        'decoKeys': ['urakka.containercolors'],
+    },
+    'DevSpawner': {
+        'modId': 'urakka.kingdominc.devspawner',
+        'name': 'Dev Spawner',
+        'techs': ['urakka.kingdominc.devspawner.unlock'],
+    },
+    'Foundation': {
+        'modId': 'urakka.kingdominc.foundation',
+        'name': 'Foundation',
+    },
+    'GlobalLedger': {
+        'modId': 'urakka.kingdominc.globalledger',
+        'name': 'Global Ledger',
+        'techs': ['global_ledger'],
+    },
+    'GlobalLedgerV2': {
+        'modId': 'urakka.kingdominc.globalledgerv2',
+        'name': 'Global Ledger V2',
+        'techs': ['global_ledger'],
+    },
+    'HDSnapshot': {
+        'modId': 'urakka.kingdominc.hdsnapshot',
+        'name': 'HD Snapshot',
+    },
+    'HotkeyCustomizer': {
+        'modId': 'urakka.kingdominc.hotkeycustomizer',
+        'name': 'Hotkey Customizer',
+        # Note: v1.5.2+ no longer registers urakka.kingdominc.hotkeycustomizer.unlock
+    },
+    'LedgerMod': {
+        'modId': 'urakka.kingdominc.ledgermod',
+        'name': 'Ledger',
+        'techs': ['ledger_mod'],
+        'elements': {'Ledger': [384, 192]},
+        'elementKeys': ['LedgerPairs', 'LedgerPeriod'],
+    },
+    'LeylineConduits': {
+        'modId': 'urakka.kingdominc.leylineconduits',
+        'name': 'Leyline Conduits',
+        'techs': ['leyline_conduits'],
+        'elements': {'LeylineConduit': [64, 64]},
+        'elementKeys': ['LeylineMode', 'LeylineChannel', 'LeylineIcon', 'LeylineManualIcon'],
+    },
+    'LeylineLogistics': {
+        'modId': 'urakka.kingdominc.leylinelogistics',
+        'name': 'Leyline Logistics',
+        'techs': ['leyline_dimension_node'],
+        'elements': {
+            'LeylineNode': [256, 320],
+            'LeylineInputBank': [128, 320],
+            'LeylineOutputBank': [128, 320],
+            'leyline_and': [128, 128],
+            'leyline_or': [128, 128],
+            'leyline_xor': [128, 128],
+            'leyline_not': [128, 128],
+            'leyline_timer': [128, 128],
+            'leyline_counter': [128, 128],
+            'leyline_ifelse': [128, 128],
+            'leyline_latch': [128, 128],
+            'leyline_if': [128, 128],
+            'leyline_else': [128, 128],
+            'leyline_compare': [128, 128],
+        },
+        'elementKeys': [
+            'DimName', 'NodeNum', 'LayoutVer', 'HasGeom', 'PopX', 'PopY', 'PopW', 'PopH',
+            'Diagram', 'LogicWires', 'mode', 'latch', 'cntTarget', 'cntVal', 'tmrInt',
+        ],
+    },
+    'PartyUp': {
+        'modId': 'urakka.kingdominc.partynode',
+        'name': 'Party-Up',
+        'techs': ['party_node', 'party_node_auto_send'],
+        'elements': {'Party': [192, 192]},
+        'upgrades': ['PartyAutoSend'],
+        'elementKeys': ['PartyRequirements', 'RecoveredMembers', 'AutoSend'],
+    },
+    'PathFinder': {
+        'modId': 'urakka.kingdominc.pathfinder',
+        'name': 'Path Finder',
+        'techs': ['urakka.kingdominc.pathfinder.research'],
+    },
+    'PipeWrench': {
+        'modId': 'urakka.kingdominc.pipewrench',
+        'name': 'Pipe Wrench',
+        'techs': ['urakka.kingdominc.pipewrench.unlock'],
+    },
+    'PortLayouts': {
+        'modId': 'urakka.kingdominc.portlayouts',
+        'name': 'Port Layouts',
+        'techs': ['urakka.kingdominc.portlayouts.rotation'],
+        'elementKeys': ['UrakkaPortLayout'],
+    },
+    'RightClickFix': {
+        'modId': 'urakka.kingdominc.rightclickfix',
+        'name': 'Right Click Fix',
+    },
+    'SharableBlueprints': {
+        'modId': 'urakka.kingdominc.sharableblueprints',
+        'name': 'Sharable Blueprints',
+        'techs': ['urakka.kingdominc.sharableblueprints.unlock'],
+    },
+    'Snappy': {
+        'modId': 'urakka.kingdominc.snappy',
+        'name': 'Snappy',
+        'techs': ['urakka.kingdominc.snappy.research'],
+    },
+    'Undo': {
+        'modId': 'urakka.kingdominc.undo',
+        'name': 'Undo',
+    },
+    'Unstacker': {
+        'modId': 'urakka.kingdominc.unstacker',
+        'name': 'Unstacker',
+    },
+}
+
+
+def scan_installed_mods() -> dict:
+    plugins_dir = GAME_ROOT / 'BepInEx' / 'plugins'
+    mods_src_root = GAME_ROOT / '_Mods'
+    plugins = []
+    techs = {}
+    elements = {}
+    upgrades = {}
+    deco_keys = {}
+    element_keys = {}
+    mod_ids = {}
+
+    if not plugins_dir.is_dir():
+        return {
+            'pluginsDir': str(plugins_dir),
+            'plugins': plugins,
+            'techs': techs,
+            'elements': elements,
+            'upgrades': upgrades,
+            'decoKeys': deco_keys,
+            'elementKeys': element_keys,
+            'modIds': mod_ids,
+        }
+
+    for dll in sorted(plugins_dir.rglob('*.dll')):
+        if dll.name.endswith(('.vortex_backup', '.old', '.disabled')):
+            continue
+        folder = dll.parent.name if dll.parent != plugins_dir else dll.stem
+        stem = dll.stem
+        mod_json = dll.parent / 'mod.json'
+        meta = {}
+        if mod_json.is_file():
+            try:
+                meta = json.loads(mod_json.read_text(encoding='utf-8-sig'))
+            except Exception:
+                pass
+
+        known = KNOWN_MOD_DEFS.get(stem) or KNOWN_MOD_DEFS.get(folder) or {}
+        mod_id = known.get('modId') or meta.get('id') or stem
+        mod_name = meta.get('name') or known.get('name') or stem
+        version = meta.get('version') or ''
+
+        plugins.append({
+            'folder': folder,
+            'dll': dll.name,
+            'modId': mod_id,
+            'name': mod_name,
+            'version': version,
+        })
+        mod_ids[mod_id] = mod_name
+
+        for tid in known.get('techs', []):
+            techs[tid] = {'id': tid, 'modId': mod_id, 'modName': mod_name}
+        for el_id, sz in (known.get('elements') or {}).items():
+            elements[el_id] = {'id': el_id, 'modId': mod_id, 'modName': mod_name, 'size': sz}
+        for upg_id in known.get('upgrades', []):
+            upgrades[upg_id] = {'id': upg_id, 'modId': mod_id, 'modName': mod_name}
+        for dk in known.get('decoKeys', []):
+            deco_keys[dk] = {'key': dk, 'modId': mod_id, 'modName': mod_name}
+        for ek in known.get('elementKeys', []):
+            element_keys[ek] = {'key': ek, 'modId': mod_id, 'modName': mod_name}
+
+        # Dynamic source scan if _Mods/<folder>/src exists (picks up any new definitions)
+        src_dir = mods_src_root / folder / 'src'
+        if src_dir.is_dir():
+            cs_files = [
+                f for f in src_dir.rglob('*.cs')
+                if 'Verification' not in f.parts and 'Tests' not in f.parts and 'RuntimeProbe' not in f.name
+            ]
+            if cs_files:
+                txt = '\n'.join(f.read_text(encoding='utf-8', errors='ignore') for f in cs_files)
+                for m in re.finditer(r'new\s+TechNodeDefinition\(\s*"([^"]+)"', txt):
+                    tid = m.group(1)
+                    if ' ' not in tid and not tid.startswith(('foundation.', 'example.', 'other.', 'changed.')):
+                        techs.setdefault(tid, {'id': tid, 'modId': mod_id, 'modName': mod_name})
+                for m in re.finditer(r'new\s+(?:Framework)?WorkspaceNodeDefinition\(\s*"([^"]+)"', txt):
+                    el_id = m.group(1)
+                    if ' ' not in el_id and not el_id.startswith(('diagnostic.', 'urakka.foundation.')):
+                        elements.setdefault(el_id, {'id': el_id, 'modId': mod_id, 'modName': mod_name, 'size': [192, 128]})
+                for m in re.finditer(r'new\s+LeylineLogicSpec\(\s*"([^"]+)"', txt):
+                    el_id = m.group(1)
+                    elements.setdefault(el_id, {'id': el_id, 'modId': mod_id, 'modName': mod_name, 'size': [128, 128]})
+
+    return {
+        'pluginsDir': str(plugins_dir),
+        'plugins': plugins,
+        'techs': techs,
+        'elements': elements,
+        'upgrades': upgrades,
+        'decoKeys': deco_keys,
+        'elementKeys': element_keys,
+        'modIds': mod_ids,
+    }
+
+
 CATALOG_CACHE = load_or_extract_catalog()
 
 
@@ -591,7 +859,9 @@ class SaveEditorHandler(SimpleHTTPRequestHandler):
             })
 
         if path == '/api/catalog':
-            return self.send_json(200, CATALOG_CACHE)
+            payload = dict(CATALOG_CACHE)
+            payload['installedMods'] = scan_installed_mods()
+            return self.send_json(200, payload)
 
         if path == '/api/saves':
             qs = parse_qs(parsed.query)
