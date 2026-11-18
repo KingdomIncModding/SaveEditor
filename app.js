@@ -3728,8 +3728,8 @@
       `;
     }
 
-    // Single nested item fields: Arena Slot1/Slot2, Outfitter CurrentEquip/CurrentHuman, LastItem
-    for (const itemKey of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem']) {
+    // Single nested item fields: Arena Slot1/Slot2, Outfitter CurrentEquip/CurrentHuman, LastItem, TrainingDummy
+    for (const itemKey of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem', 'TrainingDummy']) {
       if (el[itemKey] !== undefined && el[itemKey] !== null) {
         handled = true;
         const sum = getItemSummary(el[itemKey]);
@@ -3746,7 +3746,7 @@
     const handledSet = new Set([
       'Recipe', 'Resource', 'SelectedResource', 'FilterType', 'Item', 'OutputType',
       'StatAppraised', 'AppraiseType', 'StatAmount', 'CurrType', 'CurrAmount',
-      'SelectedQuest', 'CurrentDungeon', 'Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem',
+      'SelectedQuest', 'CurrentDungeon', 'Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem', 'TrainingDummy',
       ...scalarKeys, ...boolKeys,
     ]);
     if (type === 'Stockpile' || type === 'WarEffort' || type === 'QuestBoard' || type === 'Inn' || type === 'TrainingGrounds') {
@@ -4418,7 +4418,7 @@
     'CollectedRequisition', 'StoredValue', 'ClickCount', 'RewardMultiplier', 'Timeout',
     'SelectedQuest', 'SelectedContract', 'WarType', 'IsOutput', 'UseMana', 'Fighting',
     'Contents', 'Soldiers', 'CurrentDungeon', 'Slot1', 'Slot2', 'CurrentEquip',
-    'CurrentHuman', 'LastItem',
+    'CurrentHuman', 'LastItem', 'TrainingDummy',
   ]);
 
   const VANILLA_DECO_KEYS = new Set([
@@ -4614,7 +4614,7 @@
         if (Array.isArray(el.CurrentDungeon?.Party)) {
           for (const pm of el.CurrentDungeon.Party) checkItemVal(pm, 'Dungeon.Party');
         }
-        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem']) {
+        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem', 'TrainingDummy']) {
           if (el[ik]) checkItemVal(el[ik], `${type}.${ik}`);
         }
       });
@@ -5031,7 +5031,7 @@
             el.Contents = cleanItemArray(el.Contents);
           }
         }
-        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem']) {
+        for (const ik of ['Slot1', 'Slot2', 'CurrentEquip', 'CurrentHuman', 'LastItem', 'TrainingDummy']) {
           if (el[ik]) {
             if (!isValidItem(el[ik])) { delete el[ik]; cleaned++; }
             else sanitizeItem(el[ik]);
@@ -5470,7 +5470,7 @@
             </div>
             ${(elDecoIssuesCount + itemPayloadIssuesCount) > 0 ? `
               <div class="row" style="font-size:11px;color:var(--text-muted);">
-                ${modScan.elementBrokenLinks.length > 0 ? `<span class="badge red">Broken Node Refs: ${modScan.elementBrokenLinks.length}</span>` : ''}
+                ${modScan.elementBrokenLinks.length > 0 ? `<span class="badge red">Broken Node Refs: ${modScan.elementBrokenLinks.length} (${Array.from(new Set(modScan.elementBrokenLinks.map((x) => `${x.elType}.${x.field}`))).slice(0, 5).join(', ')})</span>` : ''}
                 ${modScan.decoModKeys.length > 0 ? `<span class="badge gold">Broken Deco Keys: ${modScan.decoModKeys.length} (${Array.from(new Set(modScan.decoModKeys.map((d) => d.key))).join(', ')})</span>` : ''}
                 ${modScan.brokenItemsCount > 0 ? `<span class="badge red">Unknown Items/Refs: ${modScan.brokenItemsCount} (${modScan.brokenItemSamples.slice(0, 4).join(', ')})</span>` : ''}
                 ${modScan.modSavePayloads.map((mp) => `<span class="badge gold">${esc(mp.scope)}.${esc(mp.key)}${mp.subKeys.length ? ` (${mp.subKeys.join(', ')})` : ''}</span>`).join('')}
