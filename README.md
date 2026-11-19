@@ -1,6 +1,6 @@
 # Kingdom Inc Save Editor
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/S6V62AX30M)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/urakkaamyx/tip)
 
 A standalone local save editor for **Kingdom Inc** (`1.0.14+` and modded saves), built with native game icons, fonts, and full schema coverage. It runs locally in your browser with zero external network access.
 
@@ -46,4 +46,4 @@ This is a standalone external save-file tool and applies no runtime hooks or Har
 
 If you enjoy these Kingdom Inc mods and tools, consider supporting development on Ko-fi!
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/S6V62AX30M)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/urakkaamyx/tip)
